@@ -167,3 +167,105 @@ if ('IntersectionObserver' in window && !reduceMotion) {
 } else {
   document.querySelectorAll('.reveal').forEach(element => element.classList.add('is-visible'));
 }
+
+// ----------------------------------------------------
+// Contact Form ('Обсудить проект')
+// ----------------------------------------------------
+function initProjectForm() {
+  const form = document.getElementById('projectForm');
+  const feedback = document.getElementById('formFeedback');
+  if (!form || !feedback) return;
+
+  const chips = document.querySelectorAll('.form-chip');
+  const serviceInput = document.getElementById('formService');
+  const submitBtn = document.getElementById('formSubmitBtn');
+  const tgLinkEl = document.getElementById('feedbackTgLink');
+  const resetBtn = document.getElementById('feedbackResetBtn');
+
+  // Chips selection
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      chips.forEach(c => {
+        c.classList.remove('is-active');
+        c.setAttribute('aria-checked', 'false');
+      });
+      chip.classList.add('is-active');
+      chip.setAttribute('aria-checked', 'true');
+      if (serviceInput) {
+        serviceInput.value = chip.dataset.value || chip.textContent.trim();
+      }
+    });
+  });
+
+  // Remove invalid state on input
+  form.querySelectorAll('.form-input, .form-textarea').forEach(input => {
+    input.addEventListener('input', () => input.classList.remove('is-invalid'));
+  });
+
+  // Form submission
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+
+    const nameInput = document.getElementById('formName');
+    const emailInput = document.getElementById('formEmail');
+    const taskInput = document.getElementById('formTask');
+
+    let hasError = false;
+    [nameInput, emailInput, taskInput].forEach(field => {
+      if (!field || !field.value.trim()) {
+        field?.classList.add('is-invalid');
+        hasError = true;
+      }
+    });
+
+    if (emailInput && emailInput.value.trim() && !emailInput.validity.valid) {
+      emailInput.classList.add('is-invalid');
+      hasError = true;
+    }
+
+    if (hasError) {
+      const firstInvalid = form.querySelector('.is-invalid');
+      firstInvalid?.focus();
+      return;
+    }
+
+    // Submit state
+    const originalBtnHtml = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span>Отправка заявки...</span>';
+
+    const serviceName = serviceInput?.value || 'Проект';
+    const clientName = nameInput.value.trim();
+
+    // Prepare direct Telegram follow-up link
+    if (tgLinkEl) {
+      const msg = `Здравствуйте! Отправил заявку с сайта. Направление: ${serviceName}. Имя: ${clientName}.`;
+      tgLinkEl.href = `https://t.me/rdk_it?text=${encodeURIComponent(msg)}`;
+    }
+
+    // Smooth dispatch simulation
+    setTimeout(() => {
+      form.style.display = 'none';
+      feedback.hidden = false;
+      feedback.classList.add('is-visible');
+
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnHtml;
+
+      feedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 450);
+  });
+
+  // Reset form to send another task
+  resetBtn?.addEventListener('click', () => {
+    form.reset();
+    form.style.display = '';
+    feedback.hidden = true;
+    feedback.classList.remove('is-visible');
+    form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    chips[0]?.click();
+  });
+}
+
+initProjectForm();
+
