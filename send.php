@@ -177,12 +177,15 @@ $htmlBody = <<<HTML
 </html>
 HTML;
 
-// Заголовки для отправки письма
+// Заголовки для отправки письма (с RFC 2047 MIME кодированием имён)
+$encodedSiteTitle = "=?UTF-8?B?" . base64_encode($siteTitle) . "?=";
+$encodedClientName = "=?UTF-8?B?" . base64_encode($name) . "?=";
+
 $headers = [
     'MIME-Version: 1.0',
     'Content-Type: text/html; charset=UTF-8',
-    "From: {$siteTitle} <{$fromEmail}>",
-    "Reply-To: {$name} <{$email}>",
+    "From: {$encodedSiteTitle} <{$fromEmail}>",
+    "Reply-To: {$encodedClientName} <{$email}>",
     'X-Mailer: PHP/' . phpversion()
 ];
 $headersString = implode("\r\n", $headers);
@@ -238,10 +241,11 @@ if ($mailSent) {
         'message' => 'Заявка успешно принята и отправлена на kontakt@rdk-ai.com'
     ], JSON_UNESCAPED_UNICODE);
 } else {
-    // Если mail() вернул false (например, заблокирован сервис или нет прав на хостинге)
+    $errInfo = error_get_last();
+    $details = isset($errInfo['message']) ? ' (' . $errInfo['message'] . ')' : '';
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error'   => 'Не удалось отправить письмо через почтовый сервер хостинга. Пожалуйста, напишите нам напрямую в Telegram @rdk_it или на kontakt@rdk-ai.com.'
+        'error'   => 'Почтовый сервер Timeweb отклонил отправку' . $details . '. Проверьте, включен ли тумблер «Почта» в панели Timeweb.'
     ], JSON_UNESCAPED_UNICODE);
 }
