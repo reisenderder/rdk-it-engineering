@@ -68,6 +68,9 @@
 .form-submit{width:100%;cursor:pointer;border:0}
 .form-submit:disabled{opacity:.68;cursor:wait;transform:none}
 .form-terms{color:var(--faint);font:11px/1.4 var(--mono);text-align:center;letter-spacing:.02em}
+.form-error-msg{display:none;padding:12px 14px;border:1px solid #e5a49c;background:#faecea;color:#93271b;border-radius:var(--radius);font-size:13px;line-height:1.4}
+.form-error-msg.is-visible{display:block;animation:panel-in .24s ease}
+
 .form-feedback{display:none}
 .form-feedback[hidden]{display:none!important}
 .form-feedback.is-visible{display:flex;flex-direction:column;gap:16px;padding:20px 0;border-top:1px solid rgba(39,39,32,.22);animation:panel-in .3s ease}

@@ -174,6 +174,7 @@ if ('IntersectionObserver' in window && !reduceMotion) {
 function initProjectForm() {
   const form = document.getElementById('projectForm');
   const feedback = document.getElementById('formFeedback');
+  const errorMsg = document.getElementById('formErrorMsg');
   if (!form || !feedback) return;
 
   const chips = document.querySelectorAll('.form-chip');
@@ -181,6 +182,24 @@ function initProjectForm() {
   const submitBtn = document.getElementById('formSubmitBtn');
   const tgLinkEl = document.getElementById('feedbackTgLink');
   const resetBtn = document.getElementById('feedbackResetBtn');
+  const honeypot = document.getElementById('formHoneypot');
+
+  function hideError() {
+    if (errorMsg) {
+      errorMsg.textContent = '';
+      errorMsg.hidden = true;
+      errorMsg.classList.remove('is-visible');
+    }
+  }
+
+  function showError(msg) {
+    if (errorMsg) {
+      errorMsg.textContent = msg;
+      errorMsg.hidden = false;
+      errorMsg.classList.add('is-visible');
+      errorMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
 
   // Chips selection
   chips.forEach(chip => {
@@ -199,15 +218,20 @@ function initProjectForm() {
 
   // Remove invalid state on input
   form.querySelectorAll('.form-input, .form-textarea').forEach(input => {
-    input.addEventListener('input', () => input.classList.remove('is-invalid'));
+    input.addEventListener('input', () => {
+      input.classList.remove('is-invalid');
+      hideError();
+    });
   });
 
   // Form submission
-  form.addEventListener('submit', event => {
+  form.addEventListener('submit', async event => {
     event.preventDefault();
+    hideError();
 
     const nameInput = document.getElementById('formName');
     const emailInput = document.getElementById('formEmail');
+    const contactInput = document.getElementById('formContact');
     const taskInput = document.getElementById('formTask');
 
     let hasError = false;
@@ -234,17 +258,43 @@ function initProjectForm() {
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span>Отправка заявки...</span>';
 
-    const serviceName = serviceInput?.value || 'Проект';
-    const clientName = nameInput.value.trim();
+    const payload = {
+      service: serviceInput?.value || 'Проект',
+      name: nameInput.value.trim(),
+      email: emailInput.value.trim(),
+      contact: contactInput ? contactInput.value.trim() : '',
+      task: taskInput.value.trim(),
+      _hp_company: honeypot ? honeypot.value.trim() : ''
+    };
 
-    // Prepare direct Telegram follow-up link
-    if (tgLinkEl) {
-      const msg = `Здравствуйте! Отправил заявку с сайта. Направление: ${serviceName}. Имя: ${clientName}.`;
-      tgLinkEl.href = `https://t.me/rdk_it?text=${encodeURIComponent(msg)}`;
-    }
+    try {
+      const response = await fetch('send.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
 
-    // Smooth dispatch simulation
-    setTimeout(() => {
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result || !result.success) {
+        const errorText = (result && result.error)
+          ? result.error
+          : 'Не удалось отправить заявку. Пожалуйста, напишите нам напрямую в Telegram @rdk_it или на kontakt@rdk-ai.com.';
+        showError(errorText);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnHtml;
+        return;
+      }
+
+      // Success
+      if (tgLinkEl) {
+        const msg = `Здравствуйте! Отправил заявку с сайта. Направление: ${payload.service}. Имя: ${payload.name}.`;
+        tgLinkEl.href = `https://t.me/rdk_it?text=${encodeURIComponent(msg)}`;
+      }
+
       form.style.display = 'none';
       feedback.hidden = false;
       feedback.classList.add('is-visible');
@@ -253,7 +303,11 @@ function initProjectForm() {
       submitBtn.innerHTML = originalBtnHtml;
 
       feedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 450);
+    } catch (err) {
+      showError('Ошибка связи с сервером. Пожалуйста, проверьте подключение или напишите нам в Telegram @rdk_it.');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnHtml;
+    }
   });
 
   // Reset form to send another task
@@ -262,10 +316,12 @@ function initProjectForm() {
     form.style.display = '';
     feedback.hidden = true;
     feedback.classList.remove('is-visible');
+    hideError();
     form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
     chips[0]?.click();
   });
 }
 
 initProjectForm();
+
 
