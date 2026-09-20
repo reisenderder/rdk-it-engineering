@@ -13,11 +13,15 @@
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.reveal{opacity:1;transform:none}.calibre{transform:none!important}}
 
 /* --- СЕКЦИЯ КОНТАКТОВ И ОБСУЖДЕНИЕ ПРОЕКТА --- */
-.contact-layout{display:grid;grid-template-columns:1fr 1fr;column-gap:clamp(48px,6.5vw,88px);row-gap:28px;align-items:start}
-.contact-col-head{display:flex;flex-direction:column}
-.contact-col-head .eyebrow{margin-bottom:12px}
+.contact.section{padding-top:clamp(40px,5vw,60px)}
+.contact-layout{display:grid;grid-template-columns:1fr 1fr;column-gap:clamp(48px,6.5vw,88px);row-gap:28px;align-items:start;margin-top:-11px}
+.contact-col-head{display:flex;flex-direction:column;gap:21px;margin-top:4px}
+.contact-col-head .eyebrow{margin-bottom:8px;transform:translate(0,-4px)}
 .contact-col-head h2,.contact-col-head .form-title{font-size:clamp(28px,3.4vw,42px);line-height:1.15;letter-spacing:-.025em;font-weight:600;color:var(--ink);margin-top:0}
-.contact-col-head .contact-lead{margin-top:14px;color:var(--text);font-size:var(--fs-body-s);line-height:1.6;max-width:480px}
+.contact-col-head .contact-lead{margin-top:17px;transform:translate(0,3px);color:var(--text);font-size:var(--fs-body-s);line-height:1.6;max-width:480px}
+.contact-col-head--form{transform:translate(-1px,48px)}
+.contact-col-head--form .eyebrow{transform:translate(5px,-52px)}
+.contact-col-head--form .form-title{transform:translate(0px,-25px)}
 .contact-body-info,.contact-body-form{display:flex;flex-direction:column}
 .contact-channels,.contact-form{border-top:1px solid rgba(39,39,32,.22);padding-top:20px}
 .contact-row{display:flex;align-items:center;justify-content:space-between;min-height:52px;padding:14px 0;border-bottom:1px solid rgba(39,39,32,.22);text-decoration:none;color:var(--ink);transition:color .18s,padding-left .18s}
@@ -25,9 +29,17 @@
 .contact-row-left{display:inline-flex;align-items:center;gap:14px}
 .contact-ico{width:18px;height:18px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;color:var(--accent)}
 .contact-name{color:var(--text);font-size:var(--fs-body-s);font-weight:500}
-.contact-row-right{display:inline-flex;align-items:center;gap:12px}
-.contact-val{color:var(--ink);font-family:var(--mono);font-size:var(--fs-body-s);font-weight:600;letter-spacing:-.01em;transition:color .18s}
-.contact-row:hover .contact-val{color:var(--accent)}
+.contact-row-right{position:relative;display:inline-flex;align-items:center;gap:12px}
+.contact-action-label{color:var(--muted);font-family:var(--mono);font-size:var(--fs-body-s);font-weight:500;letter-spacing:.02em;transition:opacity .2s ease,transform .2s ease;white-space:nowrap}
+.contact-val{color:var(--ink);font-family:var(--mono);font-size:var(--fs-body-s);font-weight:600;letter-spacing:-.01em;transition:opacity .2s ease,transform .2s ease,color .18s ease;white-space:nowrap}
+@media(hover:hover){
+  .contact-val{position:absolute;right:25px;opacity:0;transform:translateX(8px);pointer-events:none}
+  .contact-row:hover .contact-action-label,.contact-row:focus-visible .contact-action-label{opacity:0;transform:translateX(-8px)}
+  .contact-row:hover .contact-val,.contact-row:focus-visible .contact-val{opacity:1;transform:translateX(0);color:var(--accent)}
+}
+@media(hover:none){
+  .contact-action-label{display:none}
+}
 .contact-arrow{color:var(--faint);font-size:13px;transition:transform .18s,color .18s}
 .contact-row:hover .contact-arrow{color:var(--accent);transform:translate(2px,-2px)}
 .contact-schedule{display:flex;flex-direction:column;gap:10px;margin-top:28px;padding-top:20px;border-top:1px solid rgba(39,39,32,.22)}
@@ -51,6 +63,7 @@
 .form-input:focus,.form-textarea:focus{outline:none;background:#fff;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
 .form-input.is-invalid,.form-textarea.is-invalid{border-color:#b24335;box-shadow:0 0 0 2px rgba(178,67,53,.12)}
 .form-textarea{resize:vertical;min-height:88px}
+#formTask{padding-top:16px!important;padding-bottom:56px!important;min-height:136px}
 .form-actions{display:flex;flex-direction:column;gap:10px;margin-top:4px}
 .form-submit{width:100%;cursor:pointer;border:0}
 .form-submit:disabled{opacity:.68;cursor:wait;transform:none}
