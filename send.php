@@ -31,9 +31,13 @@ $toEmail   = 'kontakt@rdk-ai.com';          // Куда доставлять з�
 $fromEmail = 'kontakt@rdk-ai.com';          // Почтовый ящик на Timeweb
 $siteTitle = 'RDK IT Engineering';
 
-// Настройки Telegram (Шаг 2 — заполняются при подключении бота)
-$tgBotToken = ''; // Пример: '1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ'
-$tgChatId   = ''; // Пример: '123456789'
+// Настройки Telegram (подгружаются из приватного config.php)
+$tgBotToken = '';
+$tgChatId   = '';
+
+if (file_exists(__DIR__ . '/config.php')) {
+    require_once __DIR__ . '/config.php';
+}
 
 // =============================================================================
 // ПОЛУЧЕНИЕ И ПРОВЕРКА ДАННЫХ
@@ -291,31 +295,102 @@ HTML;
 }
 
 // =============================================================================
-// TELEGRAM BOT DISPATCH (Шаг 2 — активируется при указании токена)
+// TELEGRAM BOT DISPATCH (Уведомления в закрытую группу команды)
 // =============================================================================
 $tgSent = false;
 if (!empty($tgBotToken) && !empty($tgChatId)) {
-    $tgText = "🔔 <b>Новая заявка с сайта</b>\n\n"
-            . "📂 <b>Направление:</b> " . htmlspecialchars($service, ENT_QUOTES) . "\n"
-            . "👤 <b>Имя:</b> " . htmlspecialchars($name, ENT_QUOTES) . "\n"
-            . "✉️ <b>Email:</b> " . htmlspecialchars($email, ENT_QUOTES) . "\n"
-            . "📱 <b>Контакт:</b> " . htmlspecialchars($contact, ENT_QUOTES) . "\n"
-            . "🕒 <b>Время:</b> " . $requestTime . "\n\n"
-            . "📝 <b>Суть задачи:</b>\n" . htmlspecialchars($task, ENT_QUOTES);
+    $safeTgService = htmlspecialchars($service, ENT_QUOTES, 'UTF-8');
+    $safeTgName    = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+    $safeTgEmail   = htmlspecialchars($email, ENT_QUOTES, 'UTF-8');
+    $safeTgContact = htmlspecialchars($contact, ENT_QUOTES, 'UTF-8');
+    $safeTgTask    = htmlspecialchars($task, ENT_QUOTES, 'UTF-8');
 
-    $tgUrl = "https://api.telegram.org/bot{$tgBotToken}/sendMessage";
-    $tgPayload = http_build_query([
+    $tgText = "🔔 <b>НОВАЯ ЗАЯВКА С САЙТА</b>\n"
+            . "━━━━━━━━━━━━━━━━━━━━\n"
+            . "📂 <b>Направление:</b> {$safeTgService}\n"
+            . "👤 <b>Клиент:</b> {$safeTgName}\n"
+            . "✉️ <b>Email:</b> {$safeTgEmail}\n"
+            . "📱 <b>Контакт:</b> {$safeTgContact}\n"
+            . "🕒 <b>Время:</b> {$requestTime}\n"
+            . "━━━━━━━━━━━━━━━━━━━━\n"
+            . "📝 <b>Суть задачи:</b>\n{$safeTgTask}";
+
+    // 1. Создаём отдельную тему-папку под клиента в супергруппе
+    $topicName = "📁 " . mb_substr($name, 0, 28) . " · " . mb_substr($service, 0, 36);
+    $topicPayload = [
+        'chat_id' => $tgChatId,
+        'name'    => $topicName
+    ];
+    $topicCtx = stream_context_create([
+        'http' => [
+            'method'  => 'POST',
+            'header'  => "Content-Type: application/json\r\n",
+            'content' => json_encode($topicPayload, JSON_UNESCAPED_UNICODE),
+            'timeout' => 4
+        ]
+    ]);
+    $topicRes = @file_get_contents("https://api.telegram.org/bot{$tgBotToken}/createForumTopic", false, $topicCtx);
+    $threadId = 0;
+    if ($topicRes) {
+        $topicData = json_decode($topicRes, true);
+        if (!empty($topicData['ok']) && !empty($topicData['result']['message_thread_id'])) {
+            $threadId = (int)$topicData['result']['message_thread_id'];
+        }
+    }
+
+    // 2. Формируем интерактивные кнопки (Inline Keyboard) для быстрой связи
+    $keyboardButtons = [];
+
+    $quickActionsRow = [];
+
+    // Кнопка Telegram (если клиент указал @username или ссылку t.me)
+    if (preg_match('/@([a-zA-Z0-9_]{4,32})/', $contact, $matches)) {
+        $quickActionsRow[] = ['text' => '💬 Написать в Telegram', 'url' => "https://t.me/{$matches[1]}"];
+    } elseif (preg_match('/t\.me\/([a-zA-Z0-9_]{4,32})/', $contact, $matches)) {
+        $quickActionsRow[] = ['text' => '💬 Написать в Telegram', 'url' => "https://t.me/{$matches[1]}"];
+    }
+
+    // Кнопка WhatsApp (если в контакте указан телефон)
+    $cleanPhone = preg_replace('/\D+/', '', $contact);
+    if (strlen($cleanPhone) >= 10 && strlen($cleanPhone) <= 15) {
+        if (strlen($cleanPhone) === 11 && $cleanPhone[0] === '8') {
+            $cleanPhone = '7' . substr($cleanPhone, 1);
+        }
+        $waText = rawurlencode("Здравствуйте, {$name}! Вы оставили заявку на сайте RDK IT Engineering по направлению «{$service}».");
+        $quickActionsRow[] = ['text' => '🟢 Написать в WhatsApp', 'url' => "https://wa.me/{$cleanPhone}?text={$waText}"];
+    }
+
+    if (!empty($quickActionsRow)) {
+        $keyboardButtons[] = $quickActionsRow;
+    }
+
+    // Кнопка быстрого ответа на Email
+    $keyboardButtons[] = [
+        ['text' => '✉️ Ответить на Email', 'url' => "mailto:{$email}?subject=" . rawurlencode("Re: Заявка на разработку RDK IT — {$service}")]
+    ];
+
+    // Кнопка фиксации ответственного инженера
+    $keyboardButtons[] = [
+        ['text' => '✋ Взять в работу', 'callback_data' => 'take_lead']
+    ];
+
+    $tgPayload = [
         'chat_id'                  => $tgChatId,
         'text'                     => $tgText,
         'parse_mode'               => 'HTML',
-        'disable_web_page_preview' => 'true'
-    ]);
+        'disable_web_page_preview' => true,
+        'reply_markup'             => ['inline_keyboard' => $keyboardButtons]
+    ];
+    if ($threadId > 0) {
+        $tgPayload['message_thread_id'] = $threadId;
+    }
 
+    $tgUrl = "https://api.telegram.org/bot{$tgBotToken}/sendMessage";
     $tgContext = stream_context_create([
         'http' => [
             'method'  => 'POST',
-            'header'  => "Content-Type: application/x-www-form-urlencoded\r\n",
-            'content' => $tgPayload,
+            'header'  => "Content-Type: application/json\r\n",
+            'content' => json_encode($tgPayload, JSON_UNESCAPED_UNICODE),
             'timeout' => 5
         ]
     ]);
@@ -328,10 +403,10 @@ if (!empty($tgBotToken) && !empty($tgChatId)) {
 // ИТОГОВЫЙ ОТВЕТ ФРОНТЕНДУ
 // =============================================================================
 
-if ($mailSent) {
+if ($mailSent || $tgSent) {
     echo json_encode([
         'success' => true,
-        'message' => 'Заявка успешно принята и отправлена на kontakt@rdk-ai.com'
+        'message' => 'Заявка успешно принята'
     ], JSON_UNESCAPED_UNICODE);
 } else {
     $errInfo = error_get_last();
@@ -339,6 +414,6 @@ if ($mailSent) {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error'   => 'Почтовый сервер Timeweb отклонил отправку' . $details . '. Проверьте, включен ли тумблер «Почта» в панели Timeweb.'
+        'error'   => 'Не удалось отправить заявку' . $details . '. Пожалуйста, напишите нам в Telegram @rdk_it.'
     ], JSON_UNESCAPED_UNICODE);
 }
