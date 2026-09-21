@@ -364,11 +364,6 @@ if (!empty($tgBotToken) && !empty($tgChatId)) {
         $keyboardButtons[] = $quickActionsRow;
     }
 
-    // Кнопка быстрого ответа на Email
-    $keyboardButtons[] = [
-        ['text' => '✉️ Ответить на Email', 'url' => "mailto:{$email}?subject=" . rawurlencode("Re: Заявка на разработку RDK IT — {$service}")]
-    ];
-
     // Кнопка фиксации ответственного инженера
     $keyboardButtons[] = [
         ['text' => '✋ Взять в работу', 'callback_data' => 'take_lead']
