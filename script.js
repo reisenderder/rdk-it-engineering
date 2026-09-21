@@ -341,4 +341,36 @@ function initProjectForm() {
 
 initProjectForm();
 
+// Интерактивное раскрытие контактов (Email и Телефон) на тач-устройствах
+function initMobileContactReveal() {
+  const expandableRows = document.querySelectorAll('.contact-row[href^="mailto:"], .contact-row[href^="tel:"]');
+  if (!expandableRows.length) return;
+
+  expandableRows.forEach(row => {
+    row.addEventListener('click', (e) => {
+      // Срабатывает только на тач-устройствах (без мыши)
+      if (window.matchMedia('(hover: none)').matches) {
+        if (!row.classList.contains('is-revealed')) {
+          e.preventDefault();
+          // Сворачиваем другие открытые контакты
+          expandableRows.forEach(other => {
+            if (other !== row) other.classList.remove('is-revealed');
+          });
+          row.classList.add('is-revealed');
+        }
+        // Если контакт уже раскрыт — повторный тап штатно совершит звонок или откроет почту
+      }
+    });
+  });
+
+  // Закрытие раскрытого контакта при касании в любом другом месте страницы
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.contact-row')) {
+      expandableRows.forEach(row => row.classList.remove('is-revealed'));
+    }
+  });
+}
+
+initMobileContactReveal();
+
 

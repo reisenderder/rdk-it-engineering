@@ -198,6 +198,99 @@ if (!$mailSent) {
 }
 
 // =============================================================================
+// АВТООТВЕТ КЛИЕНТУ (Подтверждение получения заявки)
+// =============================================================================
+if ($mailSent && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    $clientSubject = "=?UTF-8?B?" . base64_encode("RDK IT Engineering — Ваша заявка принята") . "?=";
+
+    $clientHtmlBody = <<<HTML
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Ваша заявка принята — RDK IT Engineering</title>
+  <style>
+    body { margin: 0; padding: 24px; background-color: #f5f3ee; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #272720; -webkit-font-smoothing: antialiased; }
+    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e6e0; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.04); }
+    .card-header { background: #014b52; color: #ffffff; padding: 24px 28px; }
+    .card-header h1 { margin: 0 0 6px 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+    .card-header p { margin: 0; font-size: 13px; color: rgba(255,255,255,0.8); font-family: Consolas, "Liberation Mono", Menlo, monospace; }
+    .card-body { padding: 28px; line-height: 1.6; }
+    .greeting { font-size: 20px; font-weight: 700; color: #014b52; margin-bottom: 14px; }
+    .badge { display: inline-block; padding: 4px 12px; background: rgba(1,106,113,0.1); color: #016a71; border-radius: 999px; font-size: 13px; font-weight: 600; margin-bottom: 16px; font-family: Consolas, "Liberation Mono", Menlo, monospace; }
+    .text-p { font-size: 15px; color: #272720; margin: 0 0 14px 0; }
+    .task-box { background: #fbfaf7; border: 1px solid #ece9e1; border-left: 3px solid #016a71; border-radius: 6px; padding: 16px 18px; margin: 20px 0; }
+    .task-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #67685f; font-family: Consolas, "Liberation Mono", Menlo, monospace; margin-bottom: 6px; font-weight: 600; }
+    .task-content { font-size: 14px; line-height: 1.5; color: #272720; }
+    .messenger-box { margin: 24px 0; padding: 18px; background: #faf9f6; border-radius: 8px; border: 1px dashed #d5d9d2; }
+    .messenger-title { font-size: 13px; font-weight: 600; color: #272720; margin-bottom: 12px; }
+    .btn { display: inline-block; padding: 10px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; text-decoration: none; margin-right: 8px; margin-bottom: 8px; }
+    .btn-wa { background: #25D366; color: #ffffff !important; }
+    .btn-tg { background: #229ED9; color: #ffffff !important; }
+    .signature { margin-top: 28px; padding-top: 18px; border-top: 1px solid #f0eee8; font-size: 14px; color: #272720; line-height: 1.5; }
+    .signature strong { color: #014b52; }
+    .footer-meta { margin-top: 20px; font-size: 12px; color: #71726b; font-family: Consolas, "Liberation Mono", Menlo, monospace; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="card-header">
+      <h1>RDK IT Engineering</h1>
+      <p>ПОДТВЕРЖДЕНИЕ ЗАЯВКИ · rdk-ai.com</p>
+    </div>
+    <div class="card-body">
+      <div class="greeting">Добро пожаловать!</div>
+      
+      <p class="text-p">Мы получили вашу заявку по направлению:</p>
+      <div class="badge">{$safeService}</div>
+
+      <p class="text-p">
+        Команда разработки уже изучает детали задачи. Свяжемся в течение следующего рабочего дня.
+      </p>
+
+      <div class="task-box">
+        <div class="task-title">Суть вашей задачи:</div>
+        <div class="task-content">{$safeTask}</div>
+      </div>
+
+      <div class="messenger-box">
+        <div class="messenger-title">Если вопрос срочный или удобнее продолжить диалог в мессенджере:</div>
+        <div>
+          <a class="btn btn-wa" href="https://wa.me/qr/XE4E7DVEDIZYM1" target="_blank" rel="noopener noreferrer">Написать в WhatsApp</a>
+          <a class="btn btn-tg" href="https://t.me/rdk_it" target="_blank" rel="noopener noreferrer">Написать в Telegram</a>
+        </div>
+      </div>
+
+      <div class="signature">
+        С уважением,<br>
+        <strong>Команда RDK_ITEngineering</strong>
+      </div>
+
+      <div class="footer-meta">
+        rdk-ai.com · kontakt@rdk-ai.com
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+HTML;
+
+    $clientHeaders = [
+        'MIME-Version: 1.0',
+        'Content-Type: text/html; charset=UTF-8',
+        "From: {$encodedSiteTitle} <{$fromEmail}>",
+        "Reply-To: {$encodedSiteTitle} <{$fromEmail}>",
+        'X-Mailer: PHP/' . phpversion()
+    ];
+    $clientHeadersString = implode("\r\n", $clientHeaders);
+
+    $clientSent = @mail($email, $clientSubject, $clientHtmlBody, $clientHeadersString, "-f {$fromEmail}");
+    if (!$clientSent) {
+        @mail($email, $clientSubject, $clientHtmlBody, $clientHeadersString);
+    }
+}
+
+// =============================================================================
 // TELEGRAM BOT DISPATCH (Шаг 2 — активируется при указании токена)
 // =============================================================================
 $tgSent = false;
