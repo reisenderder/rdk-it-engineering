@@ -315,27 +315,65 @@ if (!empty($tgBotToken) && !empty($tgChatId)) {
             . "━━━━━━━━━━━━━━━━━━━━\n"
             . "📝 <b>Суть задачи:</b>\n{$safeTgTask}";
 
+    // Функция выполнения запросов к Telegram Bot API (cURL + fallback на stream)
+    $tgApi = static function (string $botToken, string $method, array $params): ?array {
+        $url = "https://api.telegram.org/bot{$botToken}/{$method}";
+        $jsonPayload = json_encode($params, JSON_UNESCAPED_UNICODE);
+
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $jsonPayload,
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => 4,
+                CURLOPT_TIMEOUT        => 6,
+                CURLOPT_SSL_VERIFYPEER => true
+            ]);
+            $raw = curl_exec($ch);
+            $err = curl_error($ch);
+            curl_close($ch);
+
+            if ($raw !== false && $raw !== '') {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    return $decoded;
+                }
+            }
+            if ($err) {
+                @error_log("[Telegram API Error] {$method}: {$err}\n", 3, __DIR__ . '/tg_error.log');
+            }
+        }
+
+        // Резерв через stream_context
+        $ctx = stream_context_create([
+            'http' => [
+                'method'        => 'POST',
+                'header'        => "Content-Type: application/json\r\n",
+                'content'       => $jsonPayload,
+                'timeout'       => 5,
+                'ignore_errors' => true
+            ],
+            'ssl' => [
+                'verify_peer'      => false,
+                'verify_peer_name' => false
+            ]
+        ]);
+        $res = @file_get_contents($url, false, $ctx);
+        return $res ? json_decode($res, true) : null;
+    };
+
     // 1. Создаём отдельную тему-папку под клиента в супергруппе
     $topicName = "📁 " . mb_substr($name, 0, 28) . " · " . mb_substr($service, 0, 36);
-    $topicPayload = [
+    $topicData = $tgApi($tgBotToken, 'createForumTopic', [
         'chat_id' => $tgChatId,
         'name'    => $topicName
-    ];
-    $topicCtx = stream_context_create([
-        'http' => [
-            'method'  => 'POST',
-            'header'  => "Content-Type: application/json\r\n",
-            'content' => json_encode($topicPayload, JSON_UNESCAPED_UNICODE),
-            'timeout' => 4
-        ]
     ]);
-    $topicRes = @file_get_contents("https://api.telegram.org/bot{$tgBotToken}/createForumTopic", false, $topicCtx);
+
     $threadId = 0;
-    if ($topicRes) {
-        $topicData = json_decode($topicRes, true);
-        if (!empty($topicData['ok']) && !empty($topicData['result']['message_thread_id'])) {
-            $threadId = (int)$topicData['result']['message_thread_id'];
-        }
+    if (!empty($topicData['ok']) && !empty($topicData['result']['message_thread_id'])) {
+        $threadId = (int)$topicData['result']['message_thread_id'];
     }
 
     // 2. Формируем интерактивные кнопки (Inline Keyboard) для быстрой связи
@@ -364,7 +402,7 @@ if (!empty($tgBotToken) && !empty($tgChatId)) {
         $keyboardButtons[] = $quickActionsRow;
     }
 
-    // Кнопка фиксации ответственного инженера
+    // Кнопка фиксации ответственного инженера (обрабатывается шлюзом на Vultr)
     $keyboardButtons[] = [
         ['text' => '✋ Взять в работу', 'callback_data' => 'take_lead']
     ];
@@ -380,18 +418,15 @@ if (!empty($tgBotToken) && !empty($tgChatId)) {
         $tgPayload['message_thread_id'] = $threadId;
     }
 
-    $tgUrl = "https://api.telegram.org/bot{$tgBotToken}/sendMessage";
-    $tgContext = stream_context_create([
-        'http' => [
-            'method'  => 'POST',
-            'header'  => "Content-Type: application/json\r\n",
-            'content' => json_encode($tgPayload, JSON_UNESCAPED_UNICODE),
-            'timeout' => 5
-        ]
-    ]);
+    $msgData = $tgApi($tgBotToken, 'sendMessage', $tgPayload);
 
-    $tgResult = @file_get_contents($tgUrl, false, $tgContext);
-    $tgSent = ($tgResult !== false);
+    // Если отправка в топик не удалась (например, группа заблокировала топики), пробуем отправить в общий чат
+    if (empty($msgData['ok']) && $threadId > 0) {
+        unset($tgPayload['message_thread_id']);
+        $msgData = $tgApi($tgBotToken, 'sendMessage', $tgPayload);
+    }
+
+    $tgSent = !empty($msgData['ok']);
 }
 
 // =============================================================================
