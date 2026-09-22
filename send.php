@@ -270,6 +270,10 @@ if ($mailSent && filter_var($email, FILTER_VALIDATE_EMAIL)) {
         <strong>Команда RDK_ITEngineering</strong>
       </div>
 
+      <div style="margin-top: 18px; padding: 12px 16px; background: #faf8f2; border: 1px solid #e2ded5; border-radius: 6px; font-size: 13px; color: #67685f; line-height: 1.5;">
+        💡 <strong>Важно:</strong> Если это письмо попало в папку «Спам» или «Нежелательная почта», пожалуйста, нажмите <em>«Не спам»</em> (переместите во «Входящие») и добавьте <code style="color: #016a71; font-family: monospace;">kontakt@rdk-ai.com</code> в контакты, чтобы расчёты и ответы по проекту гарантированно доставлялись.
+      </div>
+
       <div class="footer-meta">
         rdk-ai.com · kontakt@rdk-ai.com
       </div>
@@ -279,11 +283,18 @@ if ($mailSent && filter_var($email, FILTER_VALIDATE_EMAIL)) {
 </html>
 HTML;
 
+    $msgId = sprintf('<rdk-confirm-%s-%d@rdk-ai.com>', bin2hex(random_bytes(6)), time());
+    $rfcDate = date(DATE_RFC2822);
+
     $clientHeaders = [
         'MIME-Version: 1.0',
         'Content-Type: text/html; charset=UTF-8',
         "From: {$encodedSiteTitle} <{$fromEmail}>",
         "Reply-To: {$encodedSiteTitle} <{$fromEmail}>",
+        "Date: {$rfcDate}",
+        "Message-ID: {$msgId}",
+        'Auto-Submitted: auto-generated',
+        'X-Auto-Response-Suppress: All',
         'X-Mailer: PHP/' . phpversion()
     ];
     $clientHeadersString = implode("\r\n", $clientHeaders);

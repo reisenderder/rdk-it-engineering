@@ -77,6 +77,15 @@
 .feedback-status span{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .feedback-title{font-size:var(--fs-h3);font-weight:600;color:var(--ink);letter-spacing:-.02em}
 .feedback-text{color:var(--text);font-size:var(--fs-body);line-height:1.6}
+.feedback-spam-alert{display:flex;flex-direction:column;gap:10px;padding:16px 18px;border-radius:var(--radius);background:#faf8f2;border:1px solid rgba(1,106,113,.24);border-left:4px solid var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.03)}
+.spam-alert-header{display:flex;align-items:center;gap:10px;color:var(--accent-deep)}
+.spam-alert-ico{width:18px;height:18px;color:var(--accent);stroke-width:2.2;flex-shrink:0}
+.spam-alert-title{font-size:14px;font-weight:600;letter-spacing:-.01em;color:var(--accent-deep)}
+.spam-alert-text{font-size:13px;line-height:1.55;color:var(--text);margin:0}
+.spam-alert-text strong{color:var(--ink)}
+.spam-alert-email{color:var(--accent);font-family:var(--mono);font-size:12px;font-weight:600;word-break:break-all}
+.spam-alert-sender{font:11px/1.4 var(--mono);color:var(--muted);padding-top:4px;border-top:1px dashed rgba(39,39,32,.14)}
+.spam-alert-sender code{background:rgba(39,39,32,.06);padding:2px 6px;border-radius:4px;color:var(--ink);font-weight:500}
 .feedback-links{display:flex;flex-direction:column;align-items:flex-start;gap:14px;margin-top:8px;padding-top:16px;border-top:1px solid rgba(39,39,32,.22)}
 .feedback-reset{background:transparent;border:0;padding:0;cursor:pointer;color:var(--muted);font-size:var(--fs-body-s);text-decoration:underline;text-underline-offset:4px;transition:color .2s}
 .feedback-reset:hover{color:var(--ink)}

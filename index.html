@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260921-v18">
+  <link rel="stylesheet" href="styles.css?v=20260922-v19">
   <link rel="stylesheet" href="motion.css?v=20260920-v16">
 </head>
 <body>
@@ -235,6 +235,20 @@
             <div class="feedback-status"><span></span> Заявка принята в работу</div>
             <h3 class="feedback-title">Спасибо за обращение</h3>
             <p class="feedback-text">Мы зафиксировали вводные данные. Инженер свяжется с вами в рабочее время (Сб–Чт 08:00–18:00) с предварительной оценкой и вопросами.</p>
+
+            <div class="feedback-spam-alert" id="feedbackSpamAlert">
+              <div class="spam-alert-header">
+                <svg class="ico spam-alert-ico" aria-hidden="true" viewBox="0 0 24 24"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
+                <span class="spam-alert-title">Важно: проверьте папку «Спам»</span>
+              </div>
+              <p class="spam-alert-text">
+                Мы отправили автоматическое подтверждение на ваш email <strong id="feedbackUserEmail" class="spam-alert-email"></strong>. Если письмо не появилось во «Входящих» в течение 1–2 минут, пожалуйста, проверьте папку <strong>«Спам»</strong> (или «Нежелательная почта») и нажмите <em>«Не спам»</em>.
+              </p>
+              <div class="spam-alert-sender">
+                Официальный адрес: <code>kontakt@rdk-ai.com</code>
+              </div>
+            </div>
+
             <div class="feedback-links">
               <a class="text-link" id="feedbackTgLink" href="https://t.me/rdk_it" target="_blank" rel="noopener noreferrer">
                 <span>Написать в Telegram @rdk_it</span>
@@ -250,6 +264,6 @@
       <footer class="shell footer"><span>© <span id="year"></span> RDK IT Engineering</span><span>Разработка · Данные · Контроль</span><a href="#main">Наверх <svg class="ico ico--up" aria-hidden="true"><use href="#i-arrow"/></svg></a></footer>
     </section>
   </main>
-  <script src="script.js?v=20260921-v18"></script>
+  <script src="script.js?v=20260922-v19"></script>
 </body>
 </html>

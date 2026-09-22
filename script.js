@@ -307,6 +307,11 @@ function initProjectForm() {
       }
 
       // Success
+      const userEmailEl = document.getElementById('feedbackUserEmail');
+      if (userEmailEl) {
+        userEmailEl.textContent = payload.email;
+      }
+
       if (tgLinkEl) {
         const msg = `Здравствуйте! Отправил заявку с сайта. Направление: ${payload.service}. Имя: ${payload.name}.`;
         tgLinkEl.href = `https://t.me/rdk_it?text=${encodeURIComponent(msg)}`;
