@@ -387,7 +387,7 @@ if (!empty($tgBotToken) && !empty($tgChatId)) {
     }
 
     // Текст мастер-карточки с живым Changelog
-    $changelogThreadId = 77; // Постоянная тема «📋 Реестр & Changelog»
+    $changelogThreadId = 91; // Постоянная тема «📋 Реестр & Changelog»
     $masterCardText = "🔔 <b>ЗАЯВКА С САЙТА: RDK IT ENGINEERING</b>\n"
                     . "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     . "📂 <b>Направление:</b> {$safeTgService}\n"

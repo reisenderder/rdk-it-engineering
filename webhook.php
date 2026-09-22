@@ -231,7 +231,7 @@ $firstName = trim((string)($fromUser['first_name'] ?? 'Сотрудник'));
 $username  = trim((string)($fromUser['username'] ?? ''));
 $mention   = !empty($username) ? "@{$username}" : $firstName;
 $nowTime   = date('d.m.Y H:i') . ' (МСК)';
-$changelogThreadId = 77; // Постоянная тема «📋 Реестр & Changelog»
+$changelogThreadId = 91; // Постоянная тема «📋 Реестр & Changelog»
 
 // Парсим префикс и аргументы callbackData (action:arg1:arg2)
 $parts = explode(':', $callbackData);
