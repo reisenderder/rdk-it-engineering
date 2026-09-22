@@ -364,7 +364,59 @@ if (!empty($tgBotToken) && !empty($tgChatId)) {
         return $res ? json_decode($res, true) : null;
     };
 
-    // 1. Создаём отдельную тему-папку под клиента в супергруппе
+    // 1. Формируем интерактивные кнопки связи (WhatsApp, Telegram)
+    $contactButtonsRow = [];
+    if (preg_match('/@([a-zA-Z0-9_]{4,32})/', $contact, $matches)) {
+        $contactButtonsRow[] = ['text' => '💬 Написать в Telegram', 'url' => "https://t.me/{$matches[1]}"];
+    } elseif (preg_match('/t\.me\/([a-zA-Z0-9_]{4,32})/', $contact, $matches)) {
+        $contactButtonsRow[] = ['text' => '💬 Написать в Telegram', 'url' => "https://t.me/{$matches[1]}"];
+    }
+
+    $cleanPhone = preg_replace('/\D+/', '', $contact);
+    if (strlen($cleanPhone) >= 10 && strlen($cleanPhone) <= 15) {
+        if (strlen($cleanPhone) === 11 && $cleanPhone[0] === '8') {
+            $cleanPhone = '7' . substr($cleanPhone, 1);
+        }
+        $waText = rawurlencode("Здравствуйте, {$name}! Вы оставили заявку на сайте RDK IT Engineering по направлению «{$service}».");
+        $contactButtonsRow[] = ['text' => '🟢 Написать в WhatsApp', 'url' => "https://wa.me/{$cleanPhone}?text={$waText}"];
+    }
+
+    $baseKeyboard = [];
+    if (!empty($contactButtonsRow)) {
+        $baseKeyboard[] = $contactButtonsRow;
+    }
+
+    // Текст мастер-карточки с живым Changelog
+    $changelogThreadId = 29; // Постоянная тема «📋 Реестр & Changelog»
+    $masterCardText = "🔔 <b>ЗАЯВКА С САЙТА: RDK IT ENGINEERING</b>\n"
+                    . "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    . "📂 <b>Направление:</b> {$safeTgService}\n"
+                    . "👤 <b>Клиент:</b> {$safeTgName}\n"
+                    . "✉️ <b>Email:</b> {$safeTgEmail}\n"
+                    . "📱 <b>Контакт:</b> {$safeTgContact}\n"
+                    . "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    . "📝 <b>Суть задачи:</b>\n{$safeTgTask}\n"
+                    . "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    . "📜 <b>ЖУРНАЛ ПРОЕКТА (Changelog):</b>\n"
+                    . "• {$requestTime} — 📥 Заявка поступила с сайта";
+
+    // 2. Отправляем мастер-карточку в тему «📋 Реестр & Changelog»
+    $masterPayload = [
+        'chat_id'                  => $tgChatId,
+        'message_thread_id'        => $changelogThreadId,
+        'text'                     => $masterCardText,
+        'parse_mode'               => 'HTML',
+        'disable_web_page_preview' => true
+    ];
+    if (!empty($baseKeyboard)) {
+        $masterPayload['reply_markup'] = ['inline_keyboard' => $baseKeyboard];
+    }
+    $masterRes = $tgApi($tgBotToken, 'sendMessage', $masterPayload);
+    $masterMsgId = (!empty($masterRes['ok']) && !empty($masterRes['result']['message_id']))
+        ? (int)$masterRes['result']['message_id']
+        : 0;
+
+    // 3. Создаём рабочую тему клиента в боковой панели (Рабочий спринт)
     $topicName = "📁 " . mb_substr($name, 0, 28) . " · " . mb_substr($service, 0, 36);
     $topicData = $tgApi($tgBotToken, 'createForumTopic', [
         'chat_id' => $tgChatId,
@@ -376,57 +428,26 @@ if (!empty($tgBotToken) && !empty($tgChatId)) {
         $threadId = (int)$topicData['result']['message_thread_id'];
     }
 
-    // 2. Формируем интерактивные кнопки (Inline Keyboard) для быстрой связи
-    $keyboardButtons = [];
-
-    $quickActionsRow = [];
-
-    // Кнопка Telegram (если клиент указал @username или ссылку t.me)
-    if (preg_match('/@([a-zA-Z0-9_]{4,32})/', $contact, $matches)) {
-        $quickActionsRow[] = ['text' => '💬 Написать в Telegram', 'url' => "https://t.me/{$matches[1]}"];
-    } elseif (preg_match('/t\.me\/([a-zA-Z0-9_]{4,32})/', $contact, $matches)) {
-        $quickActionsRow[] = ['text' => '💬 Написать в Telegram', 'url' => "https://t.me/{$matches[1]}"];
-    }
-
-    // Кнопка WhatsApp (если в контакте указан телефон)
-    $cleanPhone = preg_replace('/\D+/', '', $contact);
-    if (strlen($cleanPhone) >= 10 && strlen($cleanPhone) <= 15) {
-        if (strlen($cleanPhone) === 11 && $cleanPhone[0] === '8') {
-            $cleanPhone = '7' . substr($cleanPhone, 1);
-        }
-        $waText = rawurlencode("Здравствуйте, {$name}! Вы оставили заявку на сайте RDK IT Engineering по направлению «{$service}».");
-        $quickActionsRow[] = ['text' => '🟢 Написать в WhatsApp', 'url' => "https://wa.me/{$cleanPhone}?text={$waText}"];
-    }
-
-    if (!empty($quickActionsRow)) {
-        $keyboardButtons[] = $quickActionsRow;
-    }
-
-    // Кнопка фиксации ответственного инженера (обрабатывается шлюзом на Vultr)
-    $keyboardButtons[] = [
-        ['text' => '✋ Взять в работу', 'callback_data' => 'take_lead']
+    // 4. Отправляем рабочую карточку в тему клиента с кнопкой «Взять в работу»
+    $takeLeadCallback = $masterMsgId > 0 ? "take_lead:{$masterMsgId}" : "take_lead";
+    $workKeyboard = $baseKeyboard;
+    $workKeyboard[] = [
+        ['text' => '✋ Взять в работу', 'callback_data' => $takeLeadCallback]
     ];
 
-    $tgPayload = [
+    $workPayload = [
         'chat_id'                  => $tgChatId,
-        'text'                     => $tgText,
+        'text'                     => $masterCardText,
         'parse_mode'               => 'HTML',
         'disable_web_page_preview' => true,
-        'reply_markup'             => ['inline_keyboard' => $keyboardButtons]
+        'reply_markup'             => ['inline_keyboard' => $workKeyboard]
     ];
     if ($threadId > 0) {
-        $tgPayload['message_thread_id'] = $threadId;
+        $workPayload['message_thread_id'] = $threadId;
     }
 
-    $msgData = $tgApi($tgBotToken, 'sendMessage', $tgPayload);
-
-    // Если отправка в топик не удалась (например, группа заблокировала топики), пробуем отправить в общий чат
-    if (empty($msgData['ok']) && $threadId > 0) {
-        unset($tgPayload['message_thread_id']);
-        $msgData = $tgApi($tgBotToken, 'sendMessage', $tgPayload);
-    }
-
-    $tgSent = !empty($msgData['ok']);
+    $msgData = $tgApi($tgBotToken, 'sendMessage', $workPayload);
+    $tgSent = !empty($msgData['ok']) || !empty($masterRes['ok']);
 }
 
 // =============================================================================
