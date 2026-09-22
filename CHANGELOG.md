@@ -21,6 +21,16 @@
 
 Бэкап перед З9: `_backup/2026-09-03-z8-before-mobile/` (index/styles/motion/script/CHANGELOG на версии `?v=z8`).
 
+### БЛОК Р6 — Соответствие 152-ФЗ, Cookies, Аналитика и предупреждение о спаме *(2026-09-22, Ветка: feat/compliance-cookies-spam-warning)*
+
+Ветка: `feat/compliance-cookies-spam-warning`  
+Планы работ ведутся пошагово в `workplans/active/` (с архивацией в `workplans/completed/`).
+
+- [ ] **Р6.1. Предупреждение о папке «Спам» (`workplans/active/01-spam-warning.md`)** — акцентное уведомление клиенту в блоке подтверждения заявки + оптимизация RFC-заголовков автоответа в `send.php`.
+- [ ] **Р6.2. Соответствие 152-ФЗ РФ (`workplans/active/02-compliance-152fz.md`)** — разработка страницы `policy.html` (Политика обработки ПД, локализация в РФ на Timeweb, права субъектов), дисклеймер согласия под кнопкой формы, ссылки в футере.
+- [ ] **Р6.3. Сбор и согласие на Cookies (`workplans/active/03-cookies-consent.md`)** — плавающий инженерный баннер с информированием и фиксацией согласия в `localStorage`.
+- [ ] **Р6.4. Аналитика посещений (`workplans/active/04-visit-analytics.md`)** — интеграция официальной Яндекс.Метрики с Вебвизором и фиксацией целей + микро-трекер визитов `tracker.php`.
+
 ### БЛОК Р5 — Устойчивость приёма заявок к сбоям Telegram (логирование + очередь ретраев) *(2026-09-22, Ревизия 7)*
 
 Файлы: `tg_common.php` (новый), `webhook.php`, `intake.php`, `retry_intake.php` (новый),
