@@ -317,6 +317,13 @@ function initProjectForm() {
         tgLinkEl.href = `https://t.me/rdk_it?text=${encodeURIComponent(msg)}`;
       }
 
+      // Яндекс.Метрика: фиксация цели конверсии
+      if (typeof window.ym === 'function' && window.RDK_YM_ID > 0) {
+        window.ym(window.RDK_YM_ID, 'reachGoal', 'lead_submit', {
+          service: payload.service
+        });
+      }
+
       form.style.display = 'none';
       feedback.hidden = false;
       feedback.classList.add('is-visible');
@@ -418,5 +425,33 @@ function initCookieBanner() {
 }
 
 initCookieBanner();
+
+// ----------------------------------------------------
+// Автономный микро-трекер посещений (152-ФЗ РФ)
+// ----------------------------------------------------
+function recordVisit() {
+  try {
+    const payload = JSON.stringify({
+      page: window.location.pathname || '/',
+      ref: document.referrer || ''
+    });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('tracker.php', payload);
+    } else {
+      fetch('tracker.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true
+      }).catch(() => {});
+    }
+  } catch (e) {}
+}
+
+if (document.readyState === 'complete') {
+  recordVisit();
+} else {
+  window.addEventListener('load', recordVisit, { once: true });
+}
 
 
