@@ -378,4 +378,45 @@ function initMobileContactReveal() {
 
 initMobileContactReveal();
 
+// ----------------------------------------------------
+// Cookie Consent Banner (152-ФЗ РФ)
+// ----------------------------------------------------
+function initCookieBanner() {
+  const banner = document.getElementById('cookieBanner');
+  const acceptBtn = document.getElementById('cookieAcceptBtn');
+  if (!banner || !acceptBtn) return;
+
+  const CONSENT_KEY = 'rdk_cookie_consent';
+  let hasConsent = false;
+  try {
+    hasConsent = localStorage.getItem(CONSENT_KEY) === 'accepted';
+  } catch (e) {
+    // Безопасный fallback для приватных вкладок
+  }
+
+  if (hasConsent) return;
+
+  // Плавный показ баннера с ненавязчивой задержкой 1.2 секунды
+  setTimeout(() => {
+    banner.hidden = false;
+    requestAnimationFrame(() => {
+      banner.classList.add('is-visible');
+    });
+  }, 1200);
+
+  acceptBtn.addEventListener('click', () => {
+    try {
+      localStorage.setItem(CONSENT_KEY, 'accepted');
+    } catch (e) {}
+
+    banner.classList.remove('is-visible');
+    banner.classList.add('is-hiding');
+    setTimeout(() => {
+      banner.hidden = true;
+    }, 320);
+  });
+}
+
+initCookieBanner();
+
 
