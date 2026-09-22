@@ -136,10 +136,11 @@ $mention   = !empty($username) ? "@{$username}" : $firstName;
 $nowTime   = date('d.m.Y H:i') . ' (МСК)';
 $changelogThreadId = 29; // Постоянная тема «📋 Реестр & Changelog»
 
-// Парсим префикс и ID мастер-сообщения
-$parts = explode(':', $callbackData, 2);
+// Парсим префикс и аргументы callbackData (action:arg1:arg2)
+$parts = explode(':', $callbackData);
 $action = $parts[0];
-$masterMsgId = isset($parts[1]) ? (int)$parts[1] : 0;
+$arg1   = isset($parts[1]) ? (int)$parts[1] : 0;
+$arg2   = isset($parts[2]) ? (int)$parts[2] : 0;
 
 // Извлекаем только контактные кнопки (WhatsApp, Telegram)
 function extractContactButtons(array $replyMarkup): array {
@@ -163,53 +164,82 @@ function extractContactButtons(array $replyMarkup): array {
 $contactButtons = extractContactButtons($replyMarkup);
 
 // -----------------------------------------------------------------------------
-// ДЕЙСТВИЕ 1: ВЗЯТЬ В РАБОТУ (take_lead)
+// ДЕЙСТВИЕ 1: ВЗЯТЬ В ПРОЕКТ (take_lead)
 // -----------------------------------------------------------------------------
 if ($action === 'take_lead') {
-    $archiveCallback = $masterMsgId > 0 ? "archive_lead:{$masterMsgId}" : "archive_lead";
+    $masterMsgId = ($arg1 > 0) ? $arg1 : $messageId;
 
-    // Обновляем карточку в рабочей теме клиента
-    $newWorkText = $originalText . "\n• {$nowTime} — 🟢 Взят в работу ({$mention})";
-    $workKeyboard = $contactButtons;
-    $workKeyboard[] = [
-        ['text' => '📦 Завершить проект / В архив', 'callback_data' => $archiveCallback]
+    // 1. Извлекаем имя клиента и услугу из текста для заголовка новой рабочей темы
+    $clientName = 'Клиент';
+    $serviceName = 'Проект';
+    if (preg_match('/👤\s*<b>Клиент:<\/b>\s*([^\n\r<]+)/u', $originalText, $m)) {
+        $clientName = trim($m[1]);
+    }
+    if (preg_match('/📂\s*<b>Направление:<\/b>\s*([^\n\r<]+)/u', $originalText, $m)) {
+        $serviceName = trim($m[1]);
+    }
+
+    // 2. Создаём отдельную тему (Forum Topic) в Telegram под этот проект
+    $topicName = "📁 " . mb_substr($clientName, 0, 26) . " · " . mb_substr($serviceName, 0, 32);
+    $newTopic = tgApiCall($tgBotToken, 'createForumTopic', [
+        'chat_id' => $chatId,
+        'name'    => $topicName
+    ]);
+
+    $sprintThreadId = 0;
+    if (!empty($newTopic['ok']) && !empty($newTopic['result']['message_thread_id'])) {
+        $sprintThreadId = (int)$newTopic['result']['message_thread_id'];
+    }
+
+    // 3. Формируем текст со строкой Changelog
+    $cleanText = preg_replace('/\n\n🚀 <b>Рабочий спринт:<\/b>[^\n\r]*/u', '', $originalText);
+    $takenText = $cleanText . "\n• {$nowTime} — 🟢 Взят в работу ({$mention})";
+
+    // 4. Обновляем мастер-карточку в теме «📋 Реестр & Changelog»
+    $masterNotice = $sprintThreadId > 0
+        ? "\n\n🚀 <b>Рабочий спринт:</b> открыта тема <i>«{$topicName}»</i>"
+        : "";
+    $masterKeyboard = $contactButtons;
+    $masterKeyboard[] = [
+        ['text' => '🟢 В активной работе в боковой теме', 'callback_data' => 'noop']
     ];
 
     tgApiCall($tgBotToken, 'editMessageText', [
         'chat_id'                  => $chatId,
-        'message_id'               => $messageId,
-        'text'                     => $newWorkText,
+        'message_id'               => $masterMsgId,
+        'text'                     => $takenText . $masterNotice,
         'parse_mode'               => 'HTML',
         'disable_web_page_preview' => true,
-        'reply_markup'             => ['inline_keyboard' => $workKeyboard]
+        'reply_markup'             => ['inline_keyboard' => $masterKeyboard]
     ]);
 
-    // Синхронизируем мастер-карточку в теме «📋 Реестр & Changelog»
-    if ($masterMsgId > 0) {
-        // Дописываем строчку в мастер-карточку
-        $masterText = $originalText . "\n• {$nowTime} — 🟢 Взят в работу ({$mention})";
-        tgApiCall($tgBotToken, 'editMessageText', [
+    // 5. Отправляем рабочую карточку проекта в созданную тему спринта
+    if ($sprintThreadId > 0) {
+        $workKeyboard = $contactButtons;
+        $workKeyboard[] = [
+            ['text' => '📦 Завершить проект / В архив', 'callback_data' => "archive_lead:{$masterMsgId}:{$sprintThreadId}"]
+        ];
+
+        tgApiCall($tgBotToken, 'sendMessage', [
             'chat_id'                  => $chatId,
-            'message_id'               => $masterMsgId,
-            'text'                     => $masterText,
+            'message_thread_id'        => $sprintThreadId,
+            'text'                     => $takenText,
             'parse_mode'               => 'HTML',
             'disable_web_page_preview' => true,
-            'reply_markup'             => ['inline_keyboard' => $contactButtons]
+            'reply_markup'             => ['inline_keyboard' => $workKeyboard]
         ]);
     }
 
-    // Фиксируем в автономной базе данных SQLite
+    // 6. Фиксация в автономной базе данных SQLite
     try {
         $db = getDb();
         $stmt = $db->prepare("INSERT INTO events (master_msg_id, event_type, actor, details, timestamp) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$masterMsgId, 'take_lead', $mention, 'Взят в работу инженером', $nowTime]);
-    } catch (Throwable $e) {
-        // Безопасный игнор для вебхука
-    }
+        $stmt->execute([$masterMsgId, 'take_lead', $mention, "Взят в работу, создана тема: {$topicName}", $nowTime]);
+    } catch (Throwable $e) {}
 
     tgApiCall($tgBotToken, 'answerCallbackQuery', [
         'callback_query_id' => $callbackId,
-        'text'              => "Вы назначены ответственным! Статус обновлён в Реестре.",
+        'text'              => "Вы назначены ответственным! В боковой ленте создана тема «{$topicName}».",
         'show_alert'        => false
     ]);
 
@@ -221,19 +251,26 @@ if ($action === 'take_lead') {
 // ДЕЙСТВИЕ 2: ЗАВЕРШИТЬ ПРОЕКТ (archive_lead)
 // -----------------------------------------------------------------------------
 if ($action === 'archive_lead') {
-    $reopenCallback = $masterMsgId > 0 ? "reopen_lead:{$masterMsgId}" : "reopen_lead";
+    $masterMsgId    = ($arg1 > 0) ? $arg1 : 0;
+    $sprintThreadId = ($arg2 > 0) ? $arg2 : $threadId;
 
-    // 1. Формируем финальный текст с обновлением Changelog
-    $finalChangelogText = $originalText . "\n• {$nowTime} — 🏁 Проект сдан в архив ({$mention})";
+    if ($masterMsgId === 0 && ($threadId === $changelogThreadId || $threadId === 0)) {
+        $masterMsgId = $messageId;
+    }
 
+    // 1. Формируем финальный текст с обновлением Changelog (убираем временные технические пометки)
+    $cleanText = preg_replace('/\n\n🚀 <b>Рабочий спринт:<\/b>[^\n\r]*/u', '', $originalText);
+    $finalChangelogText = $cleanText . "\n• {$nowTime} — 🏁 Проект сдан в архив ({$mention})";
+
+    $reopenTargetId = $masterMsgId > 0 ? $masterMsgId : $messageId;
     $masterArchiveKeyboard = $contactButtons;
     $masterArchiveKeyboard[] = [
-        ['text' => '🔄 Возобновить проект / В работу', 'callback_data' => $reopenCallback]
+        ['text' => '🔄 Возобновить проект / В работу', 'callback_data' => "reopen_lead:{$reopenTargetId}"]
     ];
 
     $savedToRegistry = false;
 
-    // Если у нас уже есть мастер-карточка в «📋 Реестр & Changelog»
+    // 2. Обновляем мастер-карточку в теме «📋 Реестр & Changelog»
     if ($masterMsgId > 0) {
         $editRes = tgApiCall($tgBotToken, 'editMessageText', [
             'chat_id'                  => $chatId,
@@ -244,8 +281,10 @@ if ($action === 'archive_lead') {
             'reply_markup'             => ['inline_keyboard' => $masterArchiveKeyboard]
         ]);
         $savedToRegistry = !empty($editRes['ok']);
-    } else {
-        // Если мастер-карточка не была создана ранее, публикуем её в тему Реестра
+    }
+
+    // Если мастер-сообщение не было найдено, отправляем итоговую карточку в тему Реестра
+    if (!$savedToRegistry) {
         $postRes = tgApiCall($tgBotToken, 'sendMessage', [
             'chat_id'                  => $chatId,
             'message_thread_id'        => $changelogThreadId,
@@ -260,20 +299,20 @@ if ($action === 'archive_lead') {
         }
     }
 
-    // 2. Фиксация в автономной базе данных SQLite
+    // 3. Фиксация в автономной базе данных SQLite
     try {
         $db = getDb();
         $stmt = $db->prepare("INSERT INTO events (master_msg_id, event_type, actor, details, timestamp) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$masterMsgId, 'archive_lead', $mention, 'Проект завершён и сдан в архив', $nowTime]);
     } catch (Throwable $e) {}
 
-    // 3. ТРАНЗАКЦИОННАЯ БЕЗОПАСНОСТЬ:
+    // 4. ТРАНЗАКЦИОННАЯ БЕЗОПАСНОСТЬ:
     // Удаляем рабочую тему ТОЛЬКО если статус 100% зафиксирован в Реестре!
     if ($savedToRegistry) {
-        if ($threadId > 0 && $threadId !== $changelogThreadId) {
+        if ($sprintThreadId > 0 && $sprintThreadId !== $changelogThreadId) {
             tgApiCall($tgBotToken, 'deleteForumTopic', [
                 'chat_id'           => $chatId,
-                'message_thread_id' => $threadId
+                'message_thread_id' => $sprintThreadId
             ]);
         }
 
@@ -284,10 +323,12 @@ if ($action === 'archive_lead') {
         ]);
     } else {
         // ПРЕДОХРАНИТЕЛЬ: если в реестр не записалось, тему НЕ удаляем, а просто закрываем замком!
-        tgApiCall($tgBotToken, 'closeForumTopic', [
-            'chat_id'           => $chatId,
-            'message_thread_id' => $threadId
-        ]);
+        if ($sprintThreadId > 0 && $sprintThreadId !== $changelogThreadId) {
+            tgApiCall($tgBotToken, 'closeForumTopic', [
+                'chat_id'           => $chatId,
+                'message_thread_id' => $sprintThreadId
+            ]);
+        }
 
         tgApiCall($tgBotToken, 'answerCallbackQuery', [
             'callback_query_id' => $callbackId,
@@ -304,30 +345,19 @@ if ($action === 'archive_lead') {
 // ДЕЙСТВИЕ 3: ВОЗОБНОВИТЬ ПРОЕКТ (reopen_lead) — из «📋 Реестр & Changelog»
 // -----------------------------------------------------------------------------
 if ($action === 'reopen_lead') {
+    $targetMasterId = ($arg1 > 0) ? $arg1 : $messageId;
+
     // 1. Дописываем шаг возобновления в Changelog мастер-карточки
-    $reopenedText = $originalText . "\n• {$nowTime} — 🔁 Возобновлён в работу ({$mention})";
-
-    $activeMasterKeyboard = $contactButtons;
-    $activeMasterKeyboard[] = [
-        ['text' => '🟢 Проект в активной работе', 'callback_data' => 'noop']
-    ];
-
-    tgApiCall($tgBotToken, 'editMessageText', [
-        'chat_id'                  => $chatId,
-        'message_id'               => $messageId,
-        'text'                     => $reopenedText,
-        'parse_mode'               => 'HTML',
-        'disable_web_page_preview' => true,
-        'reply_markup'             => ['inline_keyboard' => $activeMasterKeyboard]
-    ]);
+    $cleanText = preg_replace('/\n\n🚀 <b>Рабочий спринт:<\/b>[^\n\r]*/u', '', $originalText);
+    $reopenedText = $cleanText . "\n• {$nowTime} — 🔁 Возобновлён в работу ({$mention})";
 
     // 2. Извлекаем имя клиента и услугу из текста для заголовка новой рабочей темы
     $clientName = 'Клиент';
     $serviceName = 'Проект';
-    if (preg_match('/👤 <b>Клиент:<\/b>\s*([^\n\r<]+)/u', $originalText, $m)) {
+    if (preg_match('/👤\s*<b>Клиент:<\/b>\s*([^\n\r<]+)/u', $originalText, $m)) {
         $clientName = trim($m[1]);
     }
-    if (preg_match('/📂 <b>Направление:<\/b>\s*([^\n\r<]+)/u', $originalText, $m)) {
+    if (preg_match('/📂\s*<b>Направление:<\/b>\s*([^\n\r<]+)/u', $originalText, $m)) {
         $serviceName = trim($m[1]);
     }
 
@@ -343,14 +373,32 @@ if ($action === 'reopen_lead') {
         $newThreadId = (int)$newTopic['result']['message_thread_id'];
     }
 
-    // 4. Отправляем рабочую карточку в новую тему с кнопкой «В архив»
-    $workArchiveCallback = "archive_lead:{$messageId}";
-    $workKeyboard = $contactButtons;
-    $workKeyboard[] = [
-        ['text' => '📦 Завершить проект / В архив', 'callback_data' => $workArchiveCallback]
+    // 4. Обновляем мастер-карточку в Реестре
+    $activeMasterKeyboard = $contactButtons;
+    $activeMasterKeyboard[] = [
+        ['text' => '🟢 В активной работе в боковой теме', 'callback_data' => 'noop']
     ];
 
+    $reopenNotice = $newThreadId > 0
+        ? "\n\n🚀 <b>Рабочий спринт:</b> открыта тема <i>«{$newTopicName}»</i>"
+        : "";
+
+    tgApiCall($tgBotToken, 'editMessageText', [
+        'chat_id'                  => $chatId,
+        'message_id'               => $targetMasterId,
+        'text'                     => $reopenedText . $reopenNotice,
+        'parse_mode'               => 'HTML',
+        'disable_web_page_preview' => true,
+        'reply_markup'             => ['inline_keyboard' => $activeMasterKeyboard]
+    ]);
+
+    // 5. Отправляем рабочую карточку в новую тему с кнопкой «В архив»
     if ($newThreadId > 0) {
+        $workKeyboard = $contactButtons;
+        $workKeyboard[] = [
+            ['text' => '📦 Завершить проект / В архив', 'callback_data' => "archive_lead:{$targetMasterId}:{$newThreadId}"]
+        ];
+
         tgApiCall($tgBotToken, 'sendMessage', [
             'chat_id'                  => $chatId,
             'message_thread_id'        => $newThreadId,
@@ -361,16 +409,16 @@ if ($action === 'reopen_lead') {
         ]);
     }
 
-    // 5. Логируем возобновление в базу SQLite
+    // 6. Логируем возобновление в базу SQLite
     try {
         $db = getDb();
         $stmt = $db->prepare("INSERT INTO events (master_msg_id, event_type, actor, details, timestamp) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$messageId, 'reopen_lead', $mention, 'Проект возобновлён и открыта тема в боковой панели', $nowTime]);
+        $stmt->execute([$targetMasterId, 'reopen_lead', $mention, "Проект возобновлён, открыта тема: {$newTopicName}", $nowTime]);
     } catch (Throwable $e) {}
 
     tgApiCall($tgBotToken, 'answerCallbackQuery', [
         'callback_query_id' => $callbackId,
-        'text'              => "Проект возобновлён! В боковой ленте создана рабочая тема.",
+        'text'              => "Проект возобновлён! В боковой ленте создана тема «{$newTopicName}».",
         'show_alert'        => false
     ]);
 

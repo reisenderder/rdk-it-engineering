@@ -400,54 +400,29 @@ if (!empty($tgBotToken) && !empty($tgChatId)) {
                     . "📜 <b>ЖУРНАЛ ПРОЕКТА (Changelog):</b>\n"
                     . "• {$requestTime} — 📥 Заявка поступила с сайта";
 
-    // 2. Отправляем мастер-карточку в тему «📋 Реестр & Changelog»
+    $keyboard = $baseKeyboard;
+    $keyboard[] = [
+        ['text' => '✋ Взять в проект', 'callback_data' => 'take_lead']
+    ];
+
+    // Отправляем карточку напрямую в постоянную тему «📋 Реестр & Changelog»
     $masterPayload = [
         'chat_id'                  => $tgChatId,
         'message_thread_id'        => $changelogThreadId,
         'text'                     => $masterCardText,
         'parse_mode'               => 'HTML',
-        'disable_web_page_preview' => true
-    ];
-    if (!empty($baseKeyboard)) {
-        $masterPayload['reply_markup'] = ['inline_keyboard' => $baseKeyboard];
-    }
-    $masterRes = $tgApi($tgBotToken, 'sendMessage', $masterPayload);
-    $masterMsgId = (!empty($masterRes['ok']) && !empty($masterRes['result']['message_id']))
-        ? (int)$masterRes['result']['message_id']
-        : 0;
-
-    // 3. Создаём рабочую тему клиента в боковой панели (Рабочий спринт)
-    $topicName = "📁 " . mb_substr($name, 0, 28) . " · " . mb_substr($service, 0, 36);
-    $topicData = $tgApi($tgBotToken, 'createForumTopic', [
-        'chat_id' => $tgChatId,
-        'name'    => $topicName
-    ]);
-
-    $threadId = 0;
-    if (!empty($topicData['ok']) && !empty($topicData['result']['message_thread_id'])) {
-        $threadId = (int)$topicData['result']['message_thread_id'];
-    }
-
-    // 4. Отправляем рабочую карточку в тему клиента с кнопкой «Взять в работу»
-    $takeLeadCallback = $masterMsgId > 0 ? "take_lead:{$masterMsgId}" : "take_lead";
-    $workKeyboard = $baseKeyboard;
-    $workKeyboard[] = [
-        ['text' => '✋ Взять в работу', 'callback_data' => $takeLeadCallback]
-    ];
-
-    $workPayload = [
-        'chat_id'                  => $tgChatId,
-        'text'                     => $masterCardText,
-        'parse_mode'               => 'HTML',
         'disable_web_page_preview' => true,
-        'reply_markup'             => ['inline_keyboard' => $workKeyboard]
+        'reply_markup'             => ['inline_keyboard' => $keyboard]
     ];
-    if ($threadId > 0) {
-        $workPayload['message_thread_id'] = $threadId;
+    $masterRes = $tgApi($tgBotToken, 'sendMessage', $masterPayload);
+
+    // Резервная отправка в общий чат, если тема Реестра по какой-то причине недоступна
+    if (empty($masterRes['ok'])) {
+        unset($masterPayload['message_thread_id']);
+        $masterRes = $tgApi($tgBotToken, 'sendMessage', $masterPayload);
     }
 
-    $msgData = $tgApi($tgBotToken, 'sendMessage', $workPayload);
-    $tgSent = !empty($msgData['ok']) || !empty($masterRes['ok']);
+    $tgSent = !empty($masterRes['ok']);
 }
 
 // =============================================================================
