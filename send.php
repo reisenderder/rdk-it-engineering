@@ -387,7 +387,7 @@ if (!empty($tgBotToken) && !empty($tgChatId)) {
     }
 
     // Текст мастер-карточки с живым Changelog
-    $changelogThreadId = 29; // Постоянная тема «📋 Реестр & Changelog»
+    $changelogThreadId = 77; // Постоянная тема «📋 Реестр & Changelog»
     $masterCardText = "🔔 <b>ЗАЯВКА С САЙТА: RDK IT ENGINEERING</b>\n"
                     . "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     . "📂 <b>Направление:</b> {$safeTgService}\n"
@@ -405,10 +405,12 @@ if (!empty($tgBotToken) && !empty($tgChatId)) {
         ['text' => '✋ Взять в проект', 'callback_data' => 'take_lead']
     ];
 
-    // Отправляем карточку напрямую в постоянную тему «📋 Реестр & Changelog»
+    // Отправляем карточку в постоянную тему «📋 Реестр & Changelog».
+    // Пишем через reply_to_message_id (id темы = id её якорного сообщения) —
+    // это работает и для свежесозданных тем, где message_thread_id отклоняется.
     $masterPayload = [
         'chat_id'                  => $tgChatId,
-        'message_thread_id'        => $changelogThreadId,
+        'reply_to_message_id'      => $changelogThreadId,
         'text'                     => $masterCardText,
         'parse_mode'               => 'HTML',
         'disable_web_page_preview' => true,
@@ -418,7 +420,7 @@ if (!empty($tgBotToken) && !empty($tgChatId)) {
 
     // Резервная отправка в общий чат, если тема Реестра по какой-то причине недоступна
     if (empty($masterRes['ok'])) {
-        unset($masterPayload['message_thread_id']);
+        unset($masterPayload['reply_to_message_id']);
         $masterRes = $tgApi($tgBotToken, 'sendMessage', $masterPayload);
     }
 

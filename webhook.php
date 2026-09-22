@@ -25,6 +25,16 @@ if (empty($tgBotToken) || empty($tgChatId)) {
 }
 
 // -----------------------------------------------------------------------------
+// ДИАГНОСТИЧЕСКИЙ ЛОГ (файл-точка → закрыт от веба правилом nginx `location ~ /\.`)
+// -----------------------------------------------------------------------------
+function whLog(string $method, $resp, string $extra = ''): void {
+    $ok   = (is_array($resp) && !empty($resp['ok'])) ? 'OK' : 'FAIL';
+    $desc = (is_array($resp) && isset($resp['description'])) ? $resp['description'] : '';
+    $line = date('Y-m-d H:i:s') . " | {$method} | {$ok} | {$desc}{$extra}\n";
+    @file_put_contents(__DIR__ . '/.wh.log', $line, FILE_APPEND | LOCK_EX);
+}
+
+// -----------------------------------------------------------------------------
 // ИНИЦИАЛИЗАЦИЯ АВТОНОМНОЙ БАЗЫ ДАННЫХ (SQLite на Vultr)
 // -----------------------------------------------------------------------------
 function getDb(): PDO {
@@ -60,10 +70,83 @@ function getDb(): PDO {
     return $pdo;
 }
 
-// Функция вызовов Telegram Bot API
+// Реестр лидов: создать запись при первом взятии, далее обновлять по master_msg_id.
+// Ключи полей берутся из белого списка, поэтому интерполяция в SQL безопасна.
+function upsertLead(int $masterMsgId, array $fields): void {
+    static $allowed = ['active_thread_id', 'client_name', 'service', 'email', 'contact', 'task', 'status'];
+    if ($masterMsgId <= 0) {
+        return;
+    }
+    try {
+        $db  = getDb();
+        $now = date('d.m.Y H:i') . ' (МСК)';
+
+        $data = [];
+        foreach ($fields as $k => $v) {
+            if (in_array($k, $allowed, true)) {
+                $data[$k] = $v;
+            }
+        }
+
+        $check = $db->prepare("SELECT id FROM leads WHERE master_msg_id = ? LIMIT 1");
+        $check->execute([$masterMsgId]);
+        $existing = $check->fetchColumn();
+
+        if ($existing) {
+            $sets = [];
+            $vals = [];
+            foreach ($data as $k => $v) {
+                $sets[] = "{$k} = ?";
+                $vals[] = $v;
+            }
+            $sets[] = "updated_at = ?";
+            $vals[] = $now;
+            $vals[] = $masterMsgId;
+            $db->prepare("UPDATE leads SET " . implode(', ', $sets) . " WHERE master_msg_id = ?")->execute($vals);
+        } else {
+            $cols = array_keys($data);
+            $cols[] = 'master_msg_id';
+            $cols[] = 'created_at';
+            $cols[] = 'updated_at';
+            $vals = array_values($data);
+            $vals[] = $masterMsgId;
+            $vals[] = $now;
+            $vals[] = $now;
+            $ph = implode(', ', array_fill(0, count($cols), '?'));
+            $db->prepare("INSERT INTO leads (" . implode(', ', $cols) . ") VALUES ({$ph})")->execute($vals);
+        }
+    } catch (Throwable $e) {
+        whLog('DB.upsertLead', null, ' | ' . $e->getMessage());
+    }
+}
+
+// Извлекаем данные клиента из ПЛОСКОГО текста карточки (Telegram отдаёт callback
+// message.text уже без HTML-тегов — теги живут отдельно в entities).
+function extractLeadFields(string $text): array {
+    $out = ['client_name' => 'Клиент', 'service' => 'Проект', 'email' => '', 'contact' => '', 'task' => ''];
+    if (preg_match('/👤\s*Клиент:\s*([^\n\r]+)/u', $text, $m)) {
+        $out['client_name'] = trim($m[1]);
+    }
+    if (preg_match('/📂\s*Направление:\s*([^\n\r]+)/u', $text, $m)) {
+        $out['service'] = trim($m[1]);
+    }
+    if (preg_match('/✉️\s*Email:\s*([^\n\r]+)/u', $text, $m)) {
+        $out['email'] = trim($m[1]);
+    }
+    if (preg_match('/📱\s*Контакт:\s*([^\n\r]+)/u', $text, $m)) {
+        $out['contact'] = trim($m[1]);
+    }
+    if (preg_match('/📝\s*Суть задачи:\s*([\s\S]+?)(?:\n━|\n📜|$)/u', $text, $m)) {
+        $out['task'] = trim($m[1]);
+    }
+    return $out;
+}
+
+// Функция вызовов Telegram Bot API (cURL + резерв на stream, с логированием ответа)
 function tgApiCall(string $botToken, string $method, array $params): ?array {
     $url = "https://api.telegram.org/bot{$botToken}/{$method}";
     $jsonPayload = json_encode($params, JSON_UNESCAPED_UNICODE);
+    $decoded = null;
 
     if (function_exists('curl_init')) {
         $ch = curl_init($url);
@@ -76,31 +159,45 @@ function tgApiCall(string $botToken, string $method, array $params): ?array {
             CURLOPT_TIMEOUT        => 6,
             CURLOPT_SSL_VERIFYPEER => true
         ]);
-        $res = curl_exec($ch);
+        $res     = curl_exec($ch);
+        $curlErr = curl_error($ch);
         curl_close($ch);
         if ($res !== false && $res !== '') {
-            $decoded = json_decode($res, true);
-            if (is_array($decoded)) {
-                return $decoded;
+            $tmp = json_decode($res, true);
+            if (is_array($tmp)) {
+                $decoded = $tmp;
+            }
+        }
+        if ($decoded === null && $curlErr !== '') {
+            whLog($method, null, " | curl_error: {$curlErr}");
+        }
+    }
+
+    if ($decoded === null) {
+        $ctx = stream_context_create([
+            'http' => [
+                'method'        => 'POST',
+                'header'        => "Content-Type: application/json\r\n",
+                'content'       => $jsonPayload,
+                'timeout'       => 5,
+                'ignore_errors' => true
+            ],
+            'ssl' => [
+                'verify_peer'      => false,
+                'verify_peer_name' => false
+            ]
+        ]);
+        $res = @file_get_contents($url, false, $ctx);
+        if ($res) {
+            $tmp = json_decode($res, true);
+            if (is_array($tmp)) {
+                $decoded = $tmp;
             }
         }
     }
 
-    $ctx = stream_context_create([
-        'http' => [
-            'method'        => 'POST',
-            'header'        => "Content-Type: application/json\r\n",
-            'content'       => $jsonPayload,
-            'timeout'       => 5,
-            'ignore_errors' => true
-        ],
-        'ssl' => [
-            'verify_peer'      => false,
-            'verify_peer_name' => false
-        ]
-    ]);
-    $res = @file_get_contents($url, false, $ctx);
-    return $res ? json_decode($res, true) : null;
+    whLog($method, $decoded);
+    return $decoded;
 }
 
 // Считываем входящий запрос от Telegram
@@ -134,13 +231,15 @@ $firstName = trim((string)($fromUser['first_name'] ?? 'Сотрудник'));
 $username  = trim((string)($fromUser['username'] ?? ''));
 $mention   = !empty($username) ? "@{$username}" : $firstName;
 $nowTime   = date('d.m.Y H:i') . ' (МСК)';
-$changelogThreadId = 29; // Постоянная тема «📋 Реестр & Changelog»
+$changelogThreadId = 77; // Постоянная тема «📋 Реестр & Changelog»
 
 // Парсим префикс и аргументы callbackData (action:arg1:arg2)
 $parts = explode(':', $callbackData);
 $action = $parts[0];
 $arg1   = isset($parts[1]) ? (int)$parts[1] : 0;
 $arg2   = isset($parts[2]) ? (int)$parts[2] : 0;
+
+whLog('INCOMING', ['ok' => true], " | action={$action} data={$callbackData} from={$mention} thread={$threadId}");
 
 // Извлекаем только контактные кнопки (WhatsApp, Telegram)
 function extractContactButtons(array $replyMarkup): array {
@@ -169,15 +268,10 @@ $contactButtons = extractContactButtons($replyMarkup);
 if ($action === 'take_lead') {
     $masterMsgId = ($arg1 > 0) ? $arg1 : $messageId;
 
-    // 1. Извлекаем имя клиента и услугу из текста для заголовка новой рабочей темы
-    $clientName = 'Клиент';
-    $serviceName = 'Проект';
-    if (preg_match('/👤\s*<b>Клиент:<\/b>\s*([^\n\r<]+)/u', $originalText, $m)) {
-        $clientName = trim($m[1]);
-    }
-    if (preg_match('/📂\s*<b>Направление:<\/b>\s*([^\n\r<]+)/u', $originalText, $m)) {
-        $serviceName = trim($m[1]);
-    }
+    // 1. Извлекаем данные клиента из плоского текста карточки
+    $lead        = extractLeadFields($originalText);
+    $clientName  = $lead['client_name'];
+    $serviceName = $lead['service'];
 
     // 2. Создаём отдельную тему (Forum Topic) в Telegram под этот проект
     $topicName = "📁 " . mb_substr($clientName, 0, 26) . " · " . mb_substr($serviceName, 0, 32);
@@ -213,7 +307,9 @@ if ($action === 'take_lead') {
         'reply_markup'             => ['inline_keyboard' => $masterKeyboard]
     ]);
 
-    // 5. Отправляем рабочую карточку проекта в созданную тему спринта
+    // 5. Отправляем рабочую карточку проекта в созданную тему спринта.
+    // ВАЖНО: в только что созданную тему пишем через reply_to_message_id (id темы =
+    // id её якорного сообщения). message_thread_id для свежих тем Telegram отклоняет.
     if ($sprintThreadId > 0) {
         $workKeyboard = $contactButtons;
         $workKeyboard[] = [
@@ -222,7 +318,7 @@ if ($action === 'take_lead') {
 
         tgApiCall($tgBotToken, 'sendMessage', [
             'chat_id'                  => $chatId,
-            'message_thread_id'        => $sprintThreadId,
+            'reply_to_message_id'      => $sprintThreadId,
             'text'                     => $takenText,
             'parse_mode'               => 'HTML',
             'disable_web_page_preview' => true,
@@ -230,12 +326,23 @@ if ($action === 'take_lead') {
         ]);
     }
 
-    // 6. Фиксация в автономной базе данных SQLite
+    // 6. Фиксация в автономной базе данных SQLite: событие + запись в реестре лидов
     try {
         $db = getDb();
         $stmt = $db->prepare("INSERT INTO events (master_msg_id, event_type, actor, details, timestamp) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$masterMsgId, 'take_lead', $mention, "Взят в работу, создана тема: {$topicName}", $nowTime]);
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        whLog('DB.events.take_lead', null, ' | ' . $e->getMessage());
+    }
+    upsertLead($masterMsgId, [
+        'active_thread_id' => $sprintThreadId,
+        'client_name'      => $clientName,
+        'service'          => $serviceName,
+        'email'            => $lead['email'],
+        'contact'          => $lead['contact'],
+        'task'             => $lead['task'],
+        'status'           => '🟢 В работе (' . $mention . ')'
+    ]);
 
     tgApiCall($tgBotToken, 'answerCallbackQuery', [
         'callback_query_id' => $callbackId,
@@ -283,11 +390,12 @@ if ($action === 'archive_lead') {
         $savedToRegistry = !empty($editRes['ok']);
     }
 
-    // Если мастер-сообщение не было найдено, отправляем итоговую карточку в тему Реестра
+    // Если мастер-сообщение не было найдено, отправляем итоговую карточку в тему Реестра.
+    // В тему пишем через reply_to_message_id (устойчиво и для свежих тем).
     if (!$savedToRegistry) {
         $postRes = tgApiCall($tgBotToken, 'sendMessage', [
             'chat_id'                  => $chatId,
-            'message_thread_id'        => $changelogThreadId,
+            'reply_to_message_id'      => $changelogThreadId,
             'text'                     => $finalChangelogText,
             'parse_mode'               => 'HTML',
             'disable_web_page_preview' => true,
@@ -299,12 +407,18 @@ if ($action === 'archive_lead') {
         }
     }
 
-    // 3. Фиксация в автономной базе данных SQLite
+    // 3. Фиксация в автономной базе данных SQLite: событие + статус лида
     try {
         $db = getDb();
         $stmt = $db->prepare("INSERT INTO events (master_msg_id, event_type, actor, details, timestamp) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$masterMsgId, 'archive_lead', $mention, 'Проект завершён и сдан в архив', $nowTime]);
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        whLog('DB.events.archive_lead', null, ' | ' . $e->getMessage());
+    }
+    upsertLead($masterMsgId, [
+        'status'           => '🏁 Архив (' . $mention . ')',
+        'active_thread_id' => 0
+    ]);
 
     // 4. ТРАНЗАКЦИОННАЯ БЕЗОПАСНОСТЬ:
     // Удаляем рабочую тему ТОЛЬКО если статус 100% зафиксирован в Реестре!
@@ -351,15 +465,10 @@ if ($action === 'reopen_lead') {
     $cleanText = preg_replace('/\n\n🚀 <b>Рабочий спринт:<\/b>[^\n\r]*/u', '', $originalText);
     $reopenedText = $cleanText . "\n• {$nowTime} — 🔁 Возобновлён в работу ({$mention})";
 
-    // 2. Извлекаем имя клиента и услугу из текста для заголовка новой рабочей темы
-    $clientName = 'Клиент';
-    $serviceName = 'Проект';
-    if (preg_match('/👤\s*<b>Клиент:<\/b>\s*([^\n\r<]+)/u', $originalText, $m)) {
-        $clientName = trim($m[1]);
-    }
-    if (preg_match('/📂\s*<b>Направление:<\/b>\s*([^\n\r<]+)/u', $originalText, $m)) {
-        $serviceName = trim($m[1]);
-    }
+    // 2. Извлекаем данные клиента из плоского текста карточки
+    $lead         = extractLeadFields($originalText);
+    $clientName   = $lead['client_name'];
+    $serviceName  = $lead['service'];
 
     // 3. Создаём новую тему в боковой панели (Рабочий спринт)
     $newTopicName = "📁 " . mb_substr($clientName, 0, 26) . " · " . mb_substr($serviceName, 0, 32);
@@ -392,7 +501,7 @@ if ($action === 'reopen_lead') {
         'reply_markup'             => ['inline_keyboard' => $activeMasterKeyboard]
     ]);
 
-    // 5. Отправляем рабочую карточку в новую тему с кнопкой «В архив»
+    // 5. Отправляем рабочую карточку в новую тему с кнопкой «В архив» (через reply_to_message_id)
     if ($newThreadId > 0) {
         $workKeyboard = $contactButtons;
         $workKeyboard[] = [
@@ -401,7 +510,7 @@ if ($action === 'reopen_lead') {
 
         tgApiCall($tgBotToken, 'sendMessage', [
             'chat_id'                  => $chatId,
-            'message_thread_id'        => $newThreadId,
+            'reply_to_message_id'      => $newThreadId,
             'text'                     => $reopenedText,
             'parse_mode'               => 'HTML',
             'disable_web_page_preview' => true,
@@ -409,12 +518,18 @@ if ($action === 'reopen_lead') {
         ]);
     }
 
-    // 6. Логируем возобновление в базу SQLite
+    // 6. Логируем возобновление: событие + статус лида
     try {
         $db = getDb();
         $stmt = $db->prepare("INSERT INTO events (master_msg_id, event_type, actor, details, timestamp) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$targetMasterId, 'reopen_lead', $mention, "Проект возобновлён, открыта тема: {$newTopicName}", $nowTime]);
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        whLog('DB.events.reopen_lead', null, ' | ' . $e->getMessage());
+    }
+    upsertLead($targetMasterId, [
+        'status'           => '🟢 В работе (' . $mention . ')',
+        'active_thread_id' => $newThreadId
+    ]);
 
     tgApiCall($tgBotToken, 'answerCallbackQuery', [
         'callback_query_id' => $callbackId,
