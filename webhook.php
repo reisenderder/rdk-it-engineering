@@ -24,51 +24,9 @@ if (empty($tgBotToken) || empty($tgChatId)) {
     exit;
 }
 
-// -----------------------------------------------------------------------------
-// ДИАГНОСТИЧЕСКИЙ ЛОГ (файл-точка → закрыт от веба правилом nginx `location ~ /\.`)
-// -----------------------------------------------------------------------------
-function whLog(string $method, $resp, string $extra = ''): void {
-    $ok   = (is_array($resp) && !empty($resp['ok'])) ? 'OK' : 'FAIL';
-    $desc = (is_array($resp) && isset($resp['description'])) ? $resp['description'] : '';
-    $line = date('Y-m-d H:i:s') . " | {$method} | {$ok} | {$desc}{$extra}\n";
-    @file_put_contents(__DIR__ . '/.wh.log', $line, FILE_APPEND | LOCK_EX);
-}
-
-// -----------------------------------------------------------------------------
-// ИНИЦИАЛИЗАЦИЯ АВТОНОМНОЙ БАЗЫ ДАННЫХ (SQLite на Vultr)
-// -----------------------------------------------------------------------------
-function getDb(): PDO {
-    static $pdo = null;
-    if ($pdo === null) {
-        $dbPath = __DIR__ . '/crm.sqlite';
-        $pdo = new PDO("sqlite:{$dbPath}");
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        $pdo->exec("
-            CREATE TABLE IF NOT EXISTS leads (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                master_msg_id INTEGER,
-                active_thread_id INTEGER,
-                client_name TEXT,
-                service TEXT,
-                email TEXT,
-                contact TEXT,
-                task TEXT,
-                status TEXT,
-                created_at TEXT,
-                updated_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                master_msg_id INTEGER,
-                event_type TEXT,
-                actor TEXT,
-                details TEXT,
-                timestamp TEXT
-            );
-        ");
-    }
-    return $pdo;
-}
+// Общие функции логирования, БД и вызовов Telegram — см. tg_common.php
+// (используется также intake.php и retry_intake.php).
+require_once __DIR__ . '/tg_common.php';
 
 // Реестр лидов: создать запись при первом взятии, далее обновлять по master_msg_id.
 // Ключи полей берутся из белого списка, поэтому интерполяция в SQL безопасна.
@@ -140,64 +98,6 @@ function extractLeadFields(string $text): array {
         $out['task'] = trim($m[1]);
     }
     return $out;
-}
-
-// Функция вызовов Telegram Bot API (cURL + резерв на stream, с логированием ответа)
-function tgApiCall(string $botToken, string $method, array $params): ?array {
-    $url = "https://api.telegram.org/bot{$botToken}/{$method}";
-    $jsonPayload = json_encode($params, JSON_UNESCAPED_UNICODE);
-    $decoded = null;
-
-    if (function_exists('curl_init')) {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $jsonPayload,
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CONNECTTIMEOUT => 4,
-            CURLOPT_TIMEOUT        => 6,
-            CURLOPT_SSL_VERIFYPEER => true
-        ]);
-        $res     = curl_exec($ch);
-        $curlErr = curl_error($ch);
-        curl_close($ch);
-        if ($res !== false && $res !== '') {
-            $tmp = json_decode($res, true);
-            if (is_array($tmp)) {
-                $decoded = $tmp;
-            }
-        }
-        if ($decoded === null && $curlErr !== '') {
-            whLog($method, null, " | curl_error: {$curlErr}");
-        }
-    }
-
-    if ($decoded === null) {
-        $ctx = stream_context_create([
-            'http' => [
-                'method'        => 'POST',
-                'header'        => "Content-Type: application/json\r\n",
-                'content'       => $jsonPayload,
-                'timeout'       => 5,
-                'ignore_errors' => true
-            ],
-            'ssl' => [
-                'verify_peer'      => false,
-                'verify_peer_name' => false
-            ]
-        ]);
-        $res = @file_get_contents($url, false, $ctx);
-        if ($res) {
-            $tmp = json_decode($res, true);
-            if (is_array($tmp)) {
-                $decoded = $tmp;
-            }
-        }
-    }
-
-    whLog($method, $decoded);
-    return $decoded;
 }
 
 // Считываем входящий запрос от Telegram
