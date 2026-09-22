@@ -184,20 +184,37 @@ function initProjectForm() {
   const resetBtn = document.getElementById('feedbackResetBtn');
   const honeypot = document.getElementById('formHoneypot');
 
+  function getErrorEl() {
+    let el = document.getElementById('formErrorMsg');
+    if (!el && form) {
+      el = document.createElement('div');
+      el.id = 'formErrorMsg';
+      el.className = 'form-error-msg';
+      el.setAttribute('role', 'alert');
+      const actions = form.querySelector('.form-actions');
+      if (actions) actions.prepend(el);
+    }
+    return el;
+  }
+
   function hideError() {
-    if (errorMsg) {
-      errorMsg.textContent = '';
-      errorMsg.hidden = true;
-      errorMsg.classList.remove('is-visible');
+    const el = document.getElementById('formErrorMsg');
+    if (el) {
+      el.textContent = '';
+      el.hidden = true;
+      el.classList.remove('is-visible');
     }
   }
 
   function showError(msg) {
-    if (errorMsg) {
-      errorMsg.textContent = msg;
-      errorMsg.hidden = false;
-      errorMsg.classList.add('is-visible');
-      errorMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const el = getErrorEl();
+    if (el) {
+      el.textContent = msg;
+      el.hidden = false;
+      el.classList.add('is-visible');
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+      alert(msg);
     }
   }
 
@@ -323,5 +340,37 @@ function initProjectForm() {
 }
 
 initProjectForm();
+
+// Интерактивное раскрытие контактов (Email и Телефон) на тач-устройствах
+function initMobileContactReveal() {
+  const expandableRows = document.querySelectorAll('.contact-row[href^="mailto:"], .contact-row[href^="tel:"]');
+  if (!expandableRows.length) return;
+
+  expandableRows.forEach(row => {
+    row.addEventListener('click', (e) => {
+      // Срабатывает только на тач-устройствах (без мыши)
+      if (window.matchMedia('(hover: none)').matches) {
+        if (!row.classList.contains('is-revealed')) {
+          e.preventDefault();
+          // Сворачиваем другие открытые контакты
+          expandableRows.forEach(other => {
+            if (other !== row) other.classList.remove('is-revealed');
+          });
+          row.classList.add('is-revealed');
+        }
+        // Если контакт уже раскрыт — повторный тап штатно совершит звонок или откроет почту
+      }
+    });
+  });
+
+  // Закрытие раскрытого контакта при касании в любом другом месте страницы
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.contact-row')) {
+      expandableRows.forEach(row => row.classList.remove('is-revealed'));
+    }
+  });
+}
+
+initMobileContactReveal();
 
 

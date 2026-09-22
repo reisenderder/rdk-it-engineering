@@ -31,15 +31,14 @@
 .contact-name{color:var(--text);font-size:var(--fs-body-s);font-weight:500}
 .contact-row-right{position:relative;display:inline-flex;align-items:center;gap:12px}
 .contact-action-label{color:var(--muted);font-family:var(--mono);font-size:var(--fs-body-s);font-weight:500;letter-spacing:.02em;transition:opacity .2s ease,transform .2s ease;white-space:nowrap}
-.contact-val{color:var(--ink);font-family:var(--mono);font-size:var(--fs-body-s);font-weight:600;letter-spacing:-.01em;transition:opacity .2s ease,transform .2s ease,color .18s ease;white-space:nowrap}
+.contact-val{position:absolute;right:25px;opacity:0;transform:translateX(8px);pointer-events:none;color:var(--ink);font-family:var(--mono);font-size:var(--fs-body-s);font-weight:600;letter-spacing:-.01em;transition:opacity .2s ease,transform .2s ease,color .18s ease;white-space:nowrap}
 @media(hover:hover){
-  .contact-val{position:absolute;right:25px;opacity:0;transform:translateX(8px);pointer-events:none}
   .contact-row:hover .contact-action-label,.contact-row:focus-visible .contact-action-label{opacity:0;transform:translateX(-8px)}
-  .contact-row:hover .contact-val,.contact-row:focus-visible .contact-val{opacity:1;transform:translateX(0);color:var(--accent)}
+  .contact-row:hover .contact-val,.contact-row:focus-visible .contact-val{opacity:1;transform:translateX(0);color:var(--accent);pointer-events:auto}
 }
-@media(hover:none){
-  .contact-action-label{display:none}
-}
+.contact-row.is-revealed .contact-action-label,.contact-row:active .contact-action-label{opacity:0;transform:translateX(-8px)}
+.contact-row.is-revealed .contact-val,.contact-row:active .contact-val{opacity:1;transform:translateX(0);color:var(--accent);pointer-events:auto}
+.contact-row.is-revealed .contact-arrow{color:var(--accent);transform:translate(2px,-2px)}
 .contact-arrow{color:var(--faint);font-size:13px;transition:transform .18s,color .18s}
 .contact-row:hover .contact-arrow{color:var(--accent);transform:translate(2px,-2px)}
 .contact-schedule{display:flex;flex-direction:column;gap:10px;margin-top:28px;padding-top:20px;border-top:1px solid rgba(39,39,32,.22)}
@@ -85,10 +84,13 @@
   .contact-layout{grid-template-columns:1fr;row-gap:32px}
   .contact-col-head--info{order:1}
   .contact-body-info{order:2;margin-bottom:24px}
-  .contact-col-head--form{order:3}
+  .contact-col-head--form{order:3;transform:none}
+  .contact-col-head--form .eyebrow{transform:none}
+  .contact-col-head--form .form-title{transform:none}
   .contact-body-form{order:4}
 }
 @media(max-width:720px){
+  .contact-col-head .eyebrow{display:none}
   .contact-layout{row-gap:24px}
   .contact-row-left{gap:10px}
   .contact-val{font-size:13px}
