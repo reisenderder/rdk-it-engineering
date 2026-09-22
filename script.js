@@ -307,9 +307,21 @@ function initProjectForm() {
       }
 
       // Success
+      const userEmailEl = document.getElementById('feedbackUserEmail');
+      if (userEmailEl) {
+        userEmailEl.textContent = payload.email;
+      }
+
       if (tgLinkEl) {
         const msg = `Здравствуйте! Отправил заявку с сайта. Направление: ${payload.service}. Имя: ${payload.name}.`;
         tgLinkEl.href = `https://t.me/rdk_it?text=${encodeURIComponent(msg)}`;
+      }
+
+      // Яндекс.Метрика: фиксация цели конверсии
+      if (typeof window.ym === 'function' && window.RDK_YM_ID > 0) {
+        window.ym(window.RDK_YM_ID, 'reachGoal', 'lead_submit', {
+          service: payload.service
+        });
       }
 
       form.style.display = 'none';
@@ -372,5 +384,74 @@ function initMobileContactReveal() {
 }
 
 initMobileContactReveal();
+
+// ----------------------------------------------------
+// Cookie Consent Banner (152-ФЗ РФ)
+// ----------------------------------------------------
+function initCookieBanner() {
+  const banner = document.getElementById('cookieBanner');
+  const acceptBtn = document.getElementById('cookieAcceptBtn');
+  if (!banner || !acceptBtn) return;
+
+  const CONSENT_KEY = 'rdk_cookie_consent';
+  let hasConsent = false;
+  try {
+    hasConsent = localStorage.getItem(CONSENT_KEY) === 'accepted';
+  } catch (e) {
+    // Безопасный fallback для приватных вкладок
+  }
+
+  if (hasConsent) return;
+
+  // Плавный показ баннера с ненавязчивой задержкой 1.2 секунды
+  setTimeout(() => {
+    banner.hidden = false;
+    requestAnimationFrame(() => {
+      banner.classList.add('is-visible');
+    });
+  }, 1200);
+
+  acceptBtn.addEventListener('click', () => {
+    try {
+      localStorage.setItem(CONSENT_KEY, 'accepted');
+    } catch (e) {}
+
+    banner.classList.remove('is-visible');
+    banner.classList.add('is-hiding');
+    setTimeout(() => {
+      banner.hidden = true;
+    }, 320);
+  });
+}
+
+initCookieBanner();
+
+// ----------------------------------------------------
+// Автономный микро-трекер посещений (152-ФЗ РФ)
+// ----------------------------------------------------
+function recordVisit() {
+  try {
+    const payload = JSON.stringify({
+      page: window.location.pathname || '/',
+      ref: document.referrer || ''
+    });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('tracker.php', payload);
+    } else {
+      fetch('tracker.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true
+      }).catch(() => {});
+    }
+  } catch (e) {}
+}
+
+if (document.readyState === 'complete') {
+  recordVisit();
+} else {
+  window.addEventListener('load', recordVisit, { once: true });
+}
 
 
