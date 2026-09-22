@@ -295,136 +295,56 @@ HTML;
 }
 
 // =============================================================================
-// TELEGRAM BOT DISPATCH (Уведомления в закрытую группу команды)
+// РЕЛЕ В TELEGRAM ЧЕРЕЗ VULTR
+// Timeweb не имеет доступа к api.telegram.org, поэтому карточка публикуется
+// не напрямую, а через intake.php на Vultr (bot.rdk-ai.com), защищённый секретом.
 // =============================================================================
 $tgSent = false;
-if (!empty($tgBotToken) && !empty($tgChatId)) {
-    $safeTgService = htmlspecialchars($service, ENT_QUOTES, 'UTF-8');
-    $safeTgName    = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
-    $safeTgEmail   = htmlspecialchars($email, ENT_QUOTES, 'UTF-8');
-    $safeTgContact = htmlspecialchars($contact, ENT_QUOTES, 'UTF-8');
-    $safeTgTask    = htmlspecialchars($task, ENT_QUOTES, 'UTF-8');
+if (!empty($intakeUrl) && !empty($intakeSecret)) {
+    $relayPayload = json_encode([
+        'secret'  => $intakeSecret,
+        'service' => $service,
+        'name'    => $name,
+        'email'   => $email,
+        'contact' => $contact,
+        'task'    => $task,
+    ], JSON_UNESCAPED_UNICODE);
 
-    $tgText = "🔔 <b>НОВАЯ ЗАЯВКА С САЙТА</b>\n"
-            . "━━━━━━━━━━━━━━━━━━━━\n"
-            . "📂 <b>Направление:</b> {$safeTgService}\n"
-            . "👤 <b>Клиент:</b> {$safeTgName}\n"
-            . "✉️ <b>Email:</b> {$safeTgEmail}\n"
-            . "📱 <b>Контакт:</b> {$safeTgContact}\n"
-            . "🕒 <b>Время:</b> {$requestTime}\n"
-            . "━━━━━━━━━━━━━━━━━━━━\n"
-            . "📝 <b>Суть задачи:</b>\n{$safeTgTask}";
-
-    // Функция выполнения запросов к Telegram Bot API (cURL + fallback на stream)
-    $tgApi = static function (string $botToken, string $method, array $params): ?array {
-        $url = "https://api.telegram.org/bot{$botToken}/{$method}";
-        $jsonPayload = json_encode($params, JSON_UNESCAPED_UNICODE);
-
-        if (function_exists('curl_init')) {
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_POST           => true,
-                CURLOPT_POSTFIELDS     => $jsonPayload,
-                CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_CONNECTTIMEOUT => 4,
-                CURLOPT_TIMEOUT        => 6,
-                CURLOPT_SSL_VERIFYPEER => true
-            ]);
-            $raw = curl_exec($ch);
-            $err = curl_error($ch);
-            curl_close($ch);
-
-            if ($raw !== false && $raw !== '') {
-                $decoded = json_decode($raw, true);
-                if (is_array($decoded)) {
-                    return $decoded;
-                }
-            }
-            if ($err) {
-                @error_log("[Telegram API Error] {$method}: {$err}\n", 3, __DIR__ . '/tg_error.log');
-            }
-        }
-
-        // Резерв через stream_context
-        $ctx = stream_context_create([
-            'http' => [
-                'method'        => 'POST',
-                'header'        => "Content-Type: application/json\r\n",
-                'content'       => $jsonPayload,
-                'timeout'       => 5,
-                'ignore_errors' => true
-            ],
-            'ssl' => [
-                'verify_peer'      => false,
-                'verify_peer_name' => false
-            ]
+    $relayResult = null;
+    if (function_exists('curl_init')) {
+        $ch = curl_init($intakeUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $relayPayload,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT        => 12,
+            CURLOPT_SSL_VERIFYPEER => true
         ]);
-        $res = @file_get_contents($url, false, $ctx);
-        return $res ? json_decode($res, true) : null;
-    };
-
-    // 1. Формируем интерактивные кнопки связи (WhatsApp, Telegram)
-    $contactButtonsRow = [];
-    if (preg_match('/@([a-zA-Z0-9_]{4,32})/', $contact, $matches)) {
-        $contactButtonsRow[] = ['text' => '💬 Написать в Telegram', 'url' => "https://t.me/{$matches[1]}"];
-    } elseif (preg_match('/t\.me\/([a-zA-Z0-9_]{4,32})/', $contact, $matches)) {
-        $contactButtonsRow[] = ['text' => '💬 Написать в Telegram', 'url' => "https://t.me/{$matches[1]}"];
-    }
-
-    $cleanPhone = preg_replace('/\D+/', '', $contact);
-    if (strlen($cleanPhone) >= 10 && strlen($cleanPhone) <= 15) {
-        if (strlen($cleanPhone) === 11 && $cleanPhone[0] === '8') {
-            $cleanPhone = '7' . substr($cleanPhone, 1);
+        $raw = curl_exec($ch);
+        $err = curl_error($ch);
+        curl_close($ch);
+        if ($raw !== false && $raw !== '') {
+            $relayResult = json_decode($raw, true);
         }
-        $waText = rawurlencode("Здравствуйте, {$name}! Вы оставили заявку на сайте RDK IT Engineering по направлению «{$service}».");
-        $contactButtonsRow[] = ['text' => '🟢 Написать в WhatsApp', 'url' => "https://wa.me/{$cleanPhone}?text={$waText}"];
+        if (!is_array($relayResult) && $err) {
+            @error_log("[Intake relay error] {$err}\n", 3, __DIR__ . '/tg_error.log');
+        }
     }
 
-    $baseKeyboard = [];
-    if (!empty($contactButtonsRow)) {
-        $baseKeyboard[] = $contactButtonsRow;
+    if (!is_array($relayResult)) {
+        $ctx = stream_context_create([
+            'http' => ['method' => 'POST', 'header' => "Content-Type: application/json\r\n", 'content' => $relayPayload, 'timeout' => 12, 'ignore_errors' => true],
+            'ssl'  => ['verify_peer' => false, 'verify_peer_name' => false]
+        ]);
+        $raw = @file_get_contents($intakeUrl, false, $ctx);
+        if ($raw) {
+            $relayResult = json_decode($raw, true);
+        }
     }
 
-    // Текст мастер-карточки с живым Changelog
-    $changelogThreadId = 91; // Постоянная тема «📋 Реестр & Changelog»
-    $masterCardText = "🔔 <b>ЗАЯВКА С САЙТА: RDK IT ENGINEERING</b>\n"
-                    . "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    . "📂 <b>Направление:</b> {$safeTgService}\n"
-                    . "👤 <b>Клиент:</b> {$safeTgName}\n"
-                    . "✉️ <b>Email:</b> {$safeTgEmail}\n"
-                    . "📱 <b>Контакт:</b> {$safeTgContact}\n"
-                    . "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    . "📝 <b>Суть задачи:</b>\n{$safeTgTask}\n"
-                    . "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    . "📜 <b>ЖУРНАЛ ПРОЕКТА (Changelog):</b>\n"
-                    . "• {$requestTime} — 📥 Заявка поступила с сайта";
-
-    $keyboard = $baseKeyboard;
-    $keyboard[] = [
-        ['text' => '✋ Взять в проект', 'callback_data' => 'take_lead']
-    ];
-
-    // Отправляем карточку в постоянную тему «📋 Реестр & Changelog».
-    // Пишем через reply_to_message_id (id темы = id её якорного сообщения) —
-    // это работает и для свежесозданных тем, где message_thread_id отклоняется.
-    $masterPayload = [
-        'chat_id'                  => $tgChatId,
-        'reply_to_message_id'      => $changelogThreadId,
-        'text'                     => $masterCardText,
-        'parse_mode'               => 'HTML',
-        'disable_web_page_preview' => true,
-        'reply_markup'             => ['inline_keyboard' => $keyboard]
-    ];
-    $masterRes = $tgApi($tgBotToken, 'sendMessage', $masterPayload);
-
-    // Резервная отправка в общий чат, если тема Реестра по какой-то причине недоступна
-    if (empty($masterRes['ok'])) {
-        unset($masterPayload['reply_to_message_id']);
-        $masterRes = $tgApi($tgBotToken, 'sendMessage', $masterPayload);
-    }
-
-    $tgSent = !empty($masterRes['ok']);
+    $tgSent = is_array($relayResult) && !empty($relayResult['ok']);
 }
 
 // =============================================================================
