@@ -31,7 +31,7 @@
   - **Векторный фавикон (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `og-cover.png`):**
     - Наличие иконки обязательно для появления фавикона в сниппете поисковой выдачи Яндекса и мобильного Google (влияет на CTR кликов).
 
-- [ ] **5.3. Семантическая микроразметка Schema.org для удалённого IT-сервиса (`index.html`)**
+- [x] **5.3. Семантическая микроразметка Schema.org для удалённого IT-сервиса (`index.html`)**
   - Внедрение JSON-LD разметки `ProfessionalService` в формате **Remote / Online IT Service**:
     - Бренд: `RDK IT Engineering`.
     - Зона обслуживания (`areaServed`):
