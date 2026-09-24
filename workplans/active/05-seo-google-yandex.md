@@ -20,7 +20,7 @@
   - **`sitemap.xml`:**
     - Генерация XML-карты в UTF-8 со списком страниц (`/` и `/policy.html`), датами `<lastmod>` и приоритетом `1.0`.
 
-- [ ] **5.2. Мета-теги, Canonical и Social Graph (`index.html`, `policy.html`)**
+- [x] **5.2. Мета-теги, Canonical и Social Graph (`index.html`, `policy.html`)**
   - **Канонический адрес:** `<link rel="canonical" href="https://rdk-ai.com/">` (защита от дублей страниц с utm-метками и слешами).
   - **Гео- и языковые мета-теги:**
     - `<meta name="geo.region" content="RU-CE, RU-DA, RU">`.
@@ -28,7 +28,7 @@
     - `<meta name="language" content="Russian">`.
   - **Превью-сниппеты (Open Graph & Twitter Cards):**
     - Для корректного и презентабельного отображения ссылок при отправке в мессенджерах (Telegram, WhatsApp) и соцсетях.
-  - **Векторный фавикон (`favicon.svg`, `favicon.ico`):**
+  - **Векторный фавикон (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `og-cover.png`):**
     - Наличие иконки обязательно для появления фавикона в сниппете поисковой выдачи Яндекса и мобильного Google (влияет на CTR кликов).
 
 - [ ] **5.3. Семантическая микроразметка Schema.org для удалённого IT-сервиса (`index.html`)**

@@ -33,6 +33,12 @@
       - Закрыт от индексации бэкенд и конфиденциальные файлы (`config.php`, `tracker.php`, `tg_common.php`, `intake.php`, `webhook.php`, `send.php`, `daily_backup.php`, `retry_intake.php`, `_backup/`, `*.log.php`, `*.sqlite`, `*.json`, `Telegramm.txt`).
       - Указан путь к карте сайта `Sitemap: https://rdk-ai.com/sitemap.xml`.
       - Создан валидный XML-файл `sitemap.xml` со списком страниц (`/` с приоритетом 1.0 и `/policy.html` с приоритетом 0.3) и датами последней модификации `<lastmod>`.
+- [x] **Р7.2. Мета-теги, Canonical, Open Graph и Фавикон (`index.html`, `policy.html`)** —
+      - Добавлен канонический тег `<link rel="canonical">` для главной и страницы политики, устраняющий риск дублирования контента при переходе с параметрами или по альтернативным URL.
+      - Настроены региональные и языковые теги (`geo.region: RU-CE, RU-DA, RU`, `geo.placename: Грозный, Махачкала`, `language: Russian`).
+      - Развёрнут полный комплекс Open Graph и Twitter Cards с качественным графическим превью `assets/og-cover.png` (1200×630) для презентабельного сниппета ссылок в Telegram, WhatsApp и ВК.
+      - Сгенерирован и подключен комплект фавиконов: векторный `favicon.svg` (масштабируемый без потери качества), мультиформатный `favicon.ico` (16/32/48px) и `apple-touch-icon.png` (180px) для корректного отображения иконки в результатах поиска Яндекса и Google.
+      - Обновлены версии кэша стилей `styles.css?v=20260924-v22`.
 
 ### БЛОК Р6 — Соответствие 152-ФЗ, Cookies, Аналитика и предупреждение о спаме *(2026-09-22, Ветка: feat/compliance-cookies-spam-warning)*
 
