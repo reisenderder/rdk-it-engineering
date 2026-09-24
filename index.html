@@ -52,19 +52,18 @@
     m[i].l=1*new Date();
     for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
     k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
-    (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+    (window, document, "script", "https://mc.yandex.ru/metrika/tag.js?id=113009644", "ym");
 
-    // Номер счётчика Яндекс.Метрики. Укажите ID при регистрации в metrika.yandex.ru
-    window.RDK_YM_ID = 0;
-    if (window.RDK_YM_ID > 0) {
-      ym(window.RDK_YM_ID, "init", {
-        clickmap: true,
-        trackLinks: true,
-        accurateTrackBounce: true,
-        webvisor: true
-      });
-    }
+    window.RDK_YM_ID = 113009644;
+    ym(window.RDK_YM_ID, "init", {
+      clickmap: true,
+      trackLinks: true,
+      accurateTrackBounce: true,
+      webvisor: true,
+      ecommerce: "dataLayer"
+    });
   </script>
+  <noscript><div><img src="https://mc.yandex.ru/watch/113009644" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
 
   <!-- Семантическая микроразметка Schema.org (JSON-LD) для поисковиков Яндекс и Google -->
   <script type="application/ld+json">

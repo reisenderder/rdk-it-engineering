@@ -24,7 +24,7 @@
 ### БЛОК Р7 — Региональное SEO (Кавказ, Грозный, Махачкала, РФ) *(2026-09-24, Ветка: feat/seo-regional-caucasus)*
 
 Ветка: `feat/seo-regional-caucasus`  
-План работ: `workplans/active/05-seo-google-yandex.md`.  
+План работ: `workplans/completed/05-seo-google-yandex.md` (Завершено).  
 Модель: 100% Remote (распределённая IT-команда, анализ регионального спроса без оффлайн-офиса).
 
 - [x] **Р7.1. Поисковый технический фундамент (`robots.txt`, `sitemap.xml`)** —
@@ -53,6 +53,10 @@
       - В `<head>` страницы `index.html` активирован мета-тег подтверждения прав `<meta name="yandex-verification" content="26d7ff8b5a0b053d">` (двойная гарантия валидации в сервисе).
 - [x] **Р7.6. Интеграция Google Search Console (`search.google.com`)** —
       - В `<head>` страницы `index.html` внедрён подтверждающий мета-тег Google: `<meta name="google-site-verification" content="k4jHGTlG58bVf-qfZ7OXKfFF_O2ObTN4wJBitlfRkCQ">`.
+- [x] **Р7.7. Боевая аналитика Яндекс.Метрики (`index.html`, `policy.html`, `script.js`)** —
+      - Активирован рабочий ID счётчика Яндекс.Метрики `113009644` в `index.html` и `policy.html` (`window.RDK_YM_ID = 113009644;`).
+      - Включены Вебвизор, карта кликов, карта скролла, точный показатель отказов, ecommerce и тег `<noscript>`.
+      - В `script.js` обеспечена автоматическая отправка цели `lead_submit` при успешной отправке заявки клиентом.
 
 ### БЛОК Р6 — Соответствие 152-ФЗ, Cookies, Аналитика и предупреждение о спаме *(2026-09-22, Ветка: feat/compliance-cookies-spam-warning)*
 
