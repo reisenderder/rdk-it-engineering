@@ -21,6 +21,19 @@
 
 Бэкап перед З9: `_backup/2026-09-03-z8-before-mobile/` (index/styles/motion/script/CHANGELOG на версии `?v=z8`).
 
+### БЛОК Р7 — Региональное SEO (Кавказ, Грозный, Махачкала, РФ) *(2026-09-24, Ветка: feat/seo-regional-caucasus)*
+
+Ветка: `feat/seo-regional-caucasus`  
+План работ: `workplans/active/05-seo-google-yandex.md`.  
+Модель: 100% Remote (распределённая IT-команда, анализ регионального спроса без оффлайн-офиса).
+
+- [x] **Р7.1. Поисковый технический фундамент (`robots.txt`, `sitemap.xml`)** —
+      - Создан файл `robots.txt`: открыта индексация для всех роботов с отдельными оптимизированными секциями под `User-agent: Yandex` и `User-agent: Googlebot`.
+      - Добавлена директива `Clean-param: utm_source&utm_medium&utm_campaign&utm_content&utm_term&yclid&gclid&fbclid /` для Яндекса для предотвращения дублей от рекламных меток.
+      - Закрыт от индексации бэкенд и конфиденциальные файлы (`config.php`, `tracker.php`, `tg_common.php`, `intake.php`, `webhook.php`, `send.php`, `daily_backup.php`, `retry_intake.php`, `_backup/`, `*.log.php`, `*.sqlite`, `*.json`, `Telegramm.txt`).
+      - Указан путь к карте сайта `Sitemap: https://rdk-ai.com/sitemap.xml`.
+      - Создан валидный XML-файл `sitemap.xml` со списком страниц (`/` с приоритетом 1.0 и `/policy.html` с приоритетом 0.3) и датами последней модификации `<lastmod>`.
+
 ### БЛОК Р6 — Соответствие 152-ФЗ, Cookies, Аналитика и предупреждение о спаме *(2026-09-22, Ветка: feat/compliance-cookies-spam-warning)*
 
 Ветка: `feat/compliance-cookies-spam-warning`  

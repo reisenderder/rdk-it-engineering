@@ -1,0 +1,53 @@
+# robots.txt для RDK IT Engineering (https://rdk-ai.com)
+# Оптимизировано для поисковых систем Яндекс и Google в РФ
+
+User-agent: *
+Allow: /
+Disallow: /config.php
+Disallow: /tracker.php
+Disallow: /tg_common.php
+Disallow: /intake.php
+Disallow: /webhook.php
+Disallow: /send.php
+Disallow: /daily_backup.php
+Disallow: /retry_intake.php
+Disallow: /_backup/
+Disallow: /*.log.php
+Disallow: /*.sqlite
+Disallow: /*.json
+Disallow: /*Telegramm.txt
+
+User-agent: Yandex
+Allow: /
+Disallow: /config.php
+Disallow: /tracker.php
+Disallow: /tg_common.php
+Disallow: /intake.php
+Disallow: /webhook.php
+Disallow: /send.php
+Disallow: /daily_backup.php
+Disallow: /retry_intake.php
+Disallow: /_backup/
+Disallow: /*.log.php
+Disallow: /*.sqlite
+Disallow: /*.json
+Disallow: /*Telegramm.txt
+Clean-param: utm_source&utm_medium&utm_campaign&utm_content&utm_term&yclid&gclid&fbclid /
+
+User-agent: Googlebot
+Allow: /
+Disallow: /config.php
+Disallow: /tracker.php
+Disallow: /tg_common.php
+Disallow: /intake.php
+Disallow: /webhook.php
+Disallow: /send.php
+Disallow: /daily_backup.php
+Disallow: /retry_intake.php
+Disallow: /_backup/
+Disallow: /*.log.php
+Disallow: /*.sqlite
+Disallow: /*.json
+Disallow: /*Telegramm.txt
+
+Sitemap: https://rdk-ai.com/sitemap.xml
